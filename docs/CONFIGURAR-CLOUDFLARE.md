@@ -173,6 +173,7 @@ Hace falta una app en Meta for Developers con el producto WhatsApp y un número 
    | `WA_VERIFY_TOKEN` | El texto que inventaste |
    | `WA_APP_SECRET` | App Secret (Meta: **App settings → Basic**) |
    | `WA_PLANTILLA_RECORDATORIO` | Opcional. Nombre de una plantilla aprobada con 3 variables: nombre, cuándo, barbero |
+   | `WA_PLANTILLA_PERSONAL` | Opcional. Plantilla para avisar al barbero de citas nuevas, con 3 variables: título, detalle, código |
 
 3. En el panel del dueño, pestaña **WhatsApp**, debe decir "Conectado a WhatsApp Business".
 4. En **Ajustes** escribe el número de WhatsApp de la barbería.

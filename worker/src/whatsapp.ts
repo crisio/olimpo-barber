@@ -60,9 +60,14 @@ export async function procesarEntrante(env: Env, telefonoCrudo: string, texto: s
      ON CONFLICT(telefono) DO UPDATE SET wa_verificado = 1, consentimiento = 1, ultimo_entrante_en = ?3`)
     .bind(telefono, nombrePerfil || 'Cliente', utc()).run();
   const cli = await env.DB.prepare('SELECT id FROM clientes WHERE telefono = ?').bind(telefono).first<any>();
-  const m = texto.toUpperCase().match(RE_CODIGO);
-  const cita = m && await env.DB.prepare(
-    `SELECT c.*, b.nombre AS barbero FROM citas c JOIN barberos b ON b.id = c.barbero_id WHERE c.codigo = ?`).bind(m[0]).first<any>();
+  // El mensaje puede traer otras palabras de 5 letras ("BARBA", "CEJAS"): se prueba cada una hasta dar con un código real
+  const candidatos = [...new Set(texto.toUpperCase().match(new RegExp(RE_CODIGO.source, 'g')) ?? [])].slice(0, 8);
+  let cita: any = null;
+  for (const cod of candidatos.reverse()) {
+    cita = await env.DB.prepare(
+      `SELECT c.*, b.nombre AS barbero FROM citas c JOIN barberos b ON b.id = c.barbero_id WHERE c.codigo = ?`).bind(cod).first<any>();
+    if (cita) break;
+  }
   if (!cita) {
     if (/^\s*(baja|stop|alto)\s*$/i.test(texto)) {
       await env.DB.prepare('UPDATE clientes SET consentimiento = 0 WHERE id = ?').bind(cli.id).run();

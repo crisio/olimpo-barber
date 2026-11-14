@@ -75,7 +75,7 @@ jobs:
           npm run build
           if [ -n "$DOMINIO_WEB" ]; then echo "$DOMINIO_WEB" > dist/CNAME; fi
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: web/dist
       - id: pages

@@ -15,6 +15,7 @@ export type Env = {
   WA_APP_SECRET?: string;
   WA_PLANTILLA_RECORDATORIO?: string;
   WEB_URL?: string;
+  WA_PLANTILLA_PERSONAL?: string;
 };
 
 // Honduras: UTC-6 todo el año

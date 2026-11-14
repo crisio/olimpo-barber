@@ -124,6 +124,14 @@ Cada cambio en `main` despliega solo: aplica migraciones de D1, publica el Worke
 3. En **Ajustes** revisa horario y dirección, pon el número de WhatsApp de la barbería y asigna un PIN a cada barbero. Sin PIN, el barbero no puede entrar.
 4. En **Cartel** imprime el QR.
 
+## Avisos al personal
+
+Cuando un cliente reserva, cancela o cambia su cita, el barbero de esa cita y los administradores reciben:
+
+- **Notificación en el celular** (push del navegador). Se activa una vez por dispositivo desde la agenda, con el botón **Activar notificaciones**. En iPhone hay que añadir antes la página a la pantalla de inicio y abrirla desde ese icono. Las claves de envío se generan solas y se guardan en D1; no hay nada que configurar.
+- **WhatsApp al barbero**, si en Ajustes tiene su número y la API de WhatsApp está conectada. Aplica la misma regla de las 24 horas: sin una plantilla aprobada (`WA_PLANTILLA_PERSONAL`, con 3 variables: título, detalle, código) solo sale si el barbero le escribió al número de la barbería en las últimas 24 horas.
+- **Mensaje del propio cliente**: al terminar de reservar, el botón **Confirmar por WhatsApp** abre el WhatsApp del cliente con un mensaje hacia el número de la barbería que lleva nombre, hora, servicio y código. Llega directo al WhatsApp Business de la barbería y no depende de la API.
+
 ## WhatsApp
 
 Sin credenciales de Meta la app trabaja en **modo de prueba**: no envía nada y deja cada mensaje en la bitácora del panel (pestaña WhatsApp), donde también se puede simular que un cliente escribe.

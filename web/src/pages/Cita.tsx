@@ -46,7 +46,7 @@ export default function Cita() {
   const b = datos.barberia;
   const servicios = c.servicios.map((s: any) => s.nombre).join(' + ');
   const tolerancia = b.tolerancia_min + faltan; // minutos de tolerancia que quedan cuando ya empezó
-  const wa = b.whatsapp_numero && `https://wa.me/${b.whatsapp_numero}?text=${encodeURIComponent(`Hola, quiero avisos de mi cita. Mi código es ${c.codigo}`)}`;
+  const wa = b.whatsapp_numero && `https://wa.me/${b.whatsapp_numero}?text=${encodeURIComponent(`Hola, reservé una cita en ${b.nombre}.\n${c.nombre_publico} · ${cuandoTexto(c.inicio, ahora)} · ${servicios}\nCódigo ${c.codigo}`)}`;
 
   async function cancelar() {
     setDialogo(false);
@@ -154,8 +154,8 @@ export default function Cita() {
       {c.estado === 'agendada' && wa && (
         c.con_whatsapp
           ? <a href={wa} className="btn btn-linea mt-4">Escribir a la barbería por WhatsApp</a>
-          : <><a href={wa} className="btn btn-verde mt-4">Avisarme por WhatsApp</a>
-              <p className="mt-2 text-center text-sm text-tenue">Se abre tu WhatsApp con un mensaje listo. Envíalo y te recordamos la cita por ahí.</p></>
+          : <><a href={wa} className="btn btn-verde mt-4">Confirmar por WhatsApp</a>
+              <p className="mt-2 text-center text-sm text-tenue">Se abre tu WhatsApp con un mensaje listo para la barbería. Envíalo y te recordamos la cita por ahí.</p></>
       )}
 
       {c.estado === 'no_llego' && !c.recuperada && (
