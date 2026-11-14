@@ -5,6 +5,7 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { API, DEMO, L, api, hora12, token } from '../api';
 import Agenda from '../Agenda';
 import CompartirQR, { urlPublica } from '../CompartirQR';
+import { CambiarPin } from './Barbero';
 import { Aviso, Carta, Cargando, Logo, Pagina, Poste, useDatos } from '../ui';
 
 const PESTANAS = ['Panel', 'Agenda', 'Ajustes', 'Clientes', 'WhatsApp', 'Cartel'] as const;
@@ -16,6 +17,7 @@ export default function Dueno() {
   if (dentro && error?.estado === 401) { token.guardar(null); setDentro(false); }
   if (!dentro) return <Entrar onListo={() => setDentro(true)} />;
   if (!yo) return <Pagina><Logo /><Cargando /></Pagina>;
+  if (yo.cambiar_pin) return <CambiarPin seis={yo.rol === 'dueno'} onListo={recargar} />;
   if (yo.rol !== 'dueno') return <Pagina><Logo /><div className="mt-6"><Aviso>Esta sección es solo para el dueño.</Aviso></div><Link className="btn btn-crema mt-4" to="/barbero">Ir a mi agenda</Link></Pagina>;
   return (
     <Pagina ancho="max-w-2xl">
@@ -37,7 +39,7 @@ export default function Dueno() {
         {tab === 'Ajustes' && <Ajustes />}
         {tab === 'Clientes' && <Clientes />}
         {tab === 'WhatsApp' && <WhatsApp />}
-        {tab === 'Cartel' && <Cartel barberoId={yo.barbero_id} />}
+        {tab === 'Cartel' && <Cartel barberoId={yo.atiende ? yo.barbero_id : null} />}
       </div>
     </Pagina>
   );
@@ -258,12 +260,13 @@ function FilaBarbero({ inicial, onGuardar, onFoto }: { inicial: any; onGuardar: 
     if (!r.ok) alert((await r.json().catch(() => ({}))).error ?? 'No se pudo subir la foto.'); else onFoto();
   }
   return (
-    <form className="rounded-xl border border-borde p-3" onSubmit={(e) => { e.preventDefault(); onGuardar({ ...x, activo: !!x.activo, es_admin: !!x.es_admin, pin: x.pin || undefined }); if (x.nuevo) setX({ ...inicial, pin: '' }); else setX({ ...x, pin: '' }); }}>
+    <form className="rounded-xl border border-borde p-3" onSubmit={(e) => { e.preventDefault(); onGuardar({ ...x, activo: !!x.activo, es_admin: !!x.es_admin, atiende: x.atiende !== 0, pin: x.pin || undefined }); if (x.nuevo) setX({ ...inicial, pin: '' }); else setX({ ...x, pin: '' }); }}>
       <div className="grid grid-cols-2 gap-2">
         <input aria-label="Nombre del barbero" className="campo" placeholder={x.nuevo ? 'Nuevo barbero' : 'Nombre'} value={x.nombre} onChange={(e) => setX({ ...x, nombre: e.target.value })} />
         <input aria-label="Apodo" className="campo" placeholder="Apodo" value={x.apodo ?? ''} onChange={(e) => setX({ ...x, apodo: e.target.value })} />
         <input aria-label="PIN" className="campo" inputMode="numeric" maxLength={6} placeholder={x.con_pin ? 'Cambiar PIN' : 'PIN de 4 o 6 números'} value={x.pin} onChange={(e) => setX({ ...x, pin: e.target.value.replace(/\D/g, '') })} />
         {!x.nuevo && <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.activo} onChange={(e) => setX({ ...x, activo: e.target.checked ? 1 : 0 })} />Activo</label>}
+        <label className="col-span-2 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={x.atiende !== 0} onChange={(e) => setX({ ...x, atiende: e.target.checked ? 1 : 0 })} />Atiende clientes (aparece para agendar)</label>
         <label className="col-span-2 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.es_admin} onChange={(e) => setX({ ...x, es_admin: e.target.checked ? 1 : 0 })} />Administrador: entra al panel con su PIN (6 números)</label>
       </div>
       <div className="mt-2 flex items-center gap-3">

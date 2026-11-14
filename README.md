@@ -142,6 +142,13 @@ Límites que conviene conocer:
 
 Para conectar: crea una app en Meta for Developers con el producto WhatsApp, registra el número, apunta el webhook a `https://TU-API/api/whatsapp/webhook` con tu `WA_VERIFY_TOKEN`, suscribe el campo `messages` y carga los secretos de la tabla anterior. Un número que ya se usa en la app normal de WhatsApp Business no puede usarse a la vez en la API sin el proceso de coexistencia de Meta; lo más simple es un número aparte.
 
+## Acceso del personal
+
+- **Barbero**: entra en `/barbero` con su PIN (4 números, o 6 si es administrador).
+- **Administrador**: un barbero marcado como administrador ve además el botón **Panel**. También puede existir un administrador que no atiende clientes: entra con PIN pero no aparece para agendar.
+- **PIN temporal**: quien entra con un PIN marcado como temporal debe crear uno nuevo antes de poder hacer nada más.
+- **Dueño por correo**: sigue disponible con código de Resend y Face ID.
+
 ## Datos y privacidad
 
 - El teléfono solo lo ve el personal con sesión iniciada. Las rutas públicas devuelven nombre e inicial, nunca teléfonos.

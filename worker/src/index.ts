@@ -10,7 +10,7 @@ import {
 } from './lib';
 import { enviarWA, ofrecerHora, procesarEntrante, firmaValida, manejarWebhook, tareasProgramadas, waConfigurado } from './whatsapp';
 
-type Sesion = { rol: 'dueno' | 'barbero'; usuario_id: number | null; barbero_id: number | null };
+type Sesion = { rol: 'dueno' | 'barbero'; usuario_id: number | null; barbero_id: number | null; cambiar?: number };
 type C = Context<{ Bindings: Env; Variables: { sesion: Sesion } }>;
 const app = new Hono<{ Bindings: Env; Variables: { sesion: Sesion } }>();
 
@@ -52,13 +52,17 @@ async function crearSesion(c: C, s: Sesion) {
 async function leerSesion(c: C): Promise<Sesion | null> {
   const t = c.req.header('authorization')?.replace(/^Bearer /, '');
   if (!t) return null;
-  return await c.env.DB.prepare('SELECT rol, usuario_id, barbero_id FROM sesiones WHERE token_hash = ? AND expira_en > ?')
+  return await c.env.DB.prepare(
+    `SELECT s.rol, s.usuario_id, s.barbero_id, COALESCE(b.debe_cambiar_pin, 0) AS cambiar
+     FROM sesiones s LEFT JOIN barberos b ON b.id = s.barbero_id WHERE s.token_hash = ? AND s.expira_en > ?`)
     .bind(await sha256(t), utc()).first<Sesion>();
 }
 const requiere = (...roles: Sesion['rol'][]) => async (c: C, next: () => Promise<void>) => {
   const s = await leerSesion(c);
   if (!s) return err(c, 'Inicia sesión de nuevo.', 401);
   if (!roles.includes(s.rol)) return err(c, 'No tienes permiso para esto.', 403);
+  // Con PIN temporal no se puede hacer nada hasta cambiarlo
+  if (s.cambiar && !c.req.path.startsWith('/api/auth/')) return err(c, 'Primero cambia tu PIN temporal.', 403, { cambiar_pin: true });
   c.set('sesion', s);
   await next();
 };
@@ -72,7 +76,7 @@ const COLS_CITA_PUBLICA = `c.codigo, c.inicio, c.estado, c.nombre_publico, c.ser
 async function datosBarberia(env: Env) {
   const [b, barberos, servicios] = await Promise.all([
     env.DB.prepare('SELECT * FROM barberia WHERE id = 1').first<any>(),
-    env.DB.prepare('SELECT id, nombre, apodo, foto_key, orden, activo, (pin_hash IS NOT NULL) AS con_pin, es_admin, pin_digitos FROM barberos ORDER BY orden, id').all<any>(),
+    env.DB.prepare('SELECT id, nombre, apodo, foto_key, orden, activo, (pin_hash IS NOT NULL) AS con_pin, es_admin, pin_digitos, atiende, debe_cambiar_pin FROM barberos ORDER BY orden, id').all<any>(),
     env.DB.prepare('SELECT * FROM servicios ORDER BY orden, id').all<any>(),
   ]);
   return { barberia: { ...b, horario: JSON.parse(b.horario), almuerzo: b.almuerzo ? JSON.parse(b.almuerzo) : null }, barberos: barberos.results, servicios: servicios.results };
@@ -88,7 +92,9 @@ app.get('/api/barberia', async (c) => {
   }
   return c.json({
     ...d,
-    barberos: d.barberos.filter((x: any) => x.activo).map(({ es_admin, ...x }: any) => x),
+    barberos: d.barberos.filter((x: any) => x.activo && x.atiende).map(({ es_admin, debe_cambiar_pin, ...x }: any) => x),
+    // Quiénes pueden entrar con PIN (incluye administradores que no atienden)
+    personal: d.barberos.filter((x: any) => x.activo && x.con_pin).map((x: any) => ({ id: x.id, nombre: x.nombre, apodo: x.apodo, pin_digitos: x.pin_digitos })),
     servicios: d.servicios.filter((x: any) => x.activo),
     proxima_libre: proxima, ahora: ahoraLocal(),
   });
@@ -327,7 +333,7 @@ app.post('/api/auth/pin', async (c) => {
   const d = await cuerpo(c);
   const id = Number(d.barbero_id);
   if (await demasiados(c, `pin:${id}`, 5) || await demasiados(c, `pin:${ip(c)}`, 10)) return err(c, 'Demasiados intentos. Espera 15 minutos.', 429);
-  const b = await c.env.DB.prepare('SELECT id, pin_hash, es_admin FROM barberos WHERE id = ? AND activo = 1').bind(id).first<any>();
+  const b = await c.env.DB.prepare('SELECT id, pin_hash, es_admin, debe_cambiar_pin FROM barberos WHERE id = ? AND activo = 1').bind(id).first<any>();
   if (!b?.pin_hash || !(await pinValido(String(d.pin ?? ''), b.pin_hash))) {
     await anotarIntento(c, `pin:${id}`);
     await anotarIntento(c, `pin:${ip(c)}`);
@@ -335,7 +341,7 @@ app.post('/api/auth/pin', async (c) => {
   }
   // El barbero administrador entra al panel del dueño con su PIN
   const rol = b.es_admin ? 'dueno' : 'barbero';
-  return c.json({ token: await crearSesion(c, { rol, usuario_id: null, barbero_id: b.id }), rol });
+  return c.json({ token: await crearSesion(c, { rol, usuario_id: null, barbero_id: b.id }), rol, cambiar_pin: !!b.debe_cambiar_pin });
 });
 
 app.get('/api/auth/yo', personal, async (c) => {
@@ -343,7 +349,24 @@ app.get('/api/auth/yo', personal, async (c) => {
   // passkeys = -1: sesión por PIN, sin correo, donde Face ID no aplica
   const passkeys = s.usuario_id
     ? (await c.env.DB.prepare('SELECT COUNT(*) AS n FROM passkeys WHERE usuario_id = ?').bind(s.usuario_id).first<any>()).n : -1;
-  return c.json({ ...s, passkeys });
+  const propio = s.barbero_id ? await c.env.DB.prepare('SELECT atiende, es_admin FROM barberos WHERE id = ?').bind(s.barbero_id).first<any>() : null;
+  return c.json({ rol: s.rol, usuario_id: s.usuario_id, barbero_id: s.barbero_id, passkeys, cambiar_pin: !!s.cambiar, atiende: !!propio?.atiende });
+});
+
+// El propio barbero o administrador cambia su PIN (obligatorio si entró con uno temporal)
+const PINES_OBVIOS = new Set(['123456', '000000', '111111', '654321', '1234', '0000', '1111']);
+app.post('/api/auth/cambiar-pin', personal, async (c) => {
+  const s = c.get('sesion');
+  const pin = String((await cuerpo(c)).pin ?? '');
+  const b = s.barbero_id ? await c.env.DB.prepare('SELECT id, es_admin, pin_hash FROM barberos WHERE id = ?').bind(s.barbero_id).first<any>() : null;
+  if (!b) return err(c, 'Esta sesión no usa PIN.');
+  if (b.es_admin ? !/^\d{6}$/.test(pin) : !/^(\d{4}|\d{6})$/.test(pin)) return err(c, b.es_admin ? 'El PIN debe tener 6 números.' : 'El PIN debe tener 4 o 6 números.');
+  if (PINES_OBVIOS.has(pin) || /^(\d)\1+$/.test(pin)) return err(c, 'Ese PIN es muy fácil de adivinar. Elige otro.');
+  if (b.pin_hash && (await pinValido(pin, b.pin_hash))) return err(c, 'El PIN nuevo debe ser distinto al actual.');
+  await c.env.DB.prepare('UPDATE barberos SET pin_hash = ?, pin_digitos = ?, debe_cambiar_pin = 0 WHERE id = ?').bind(await hashPin(pin), pin.length, b.id).run();
+  const mia = await sha256(c.req.header('authorization')!.replace(/^Bearer /, ''));
+  await c.env.DB.prepare('DELETE FROM sesiones WHERE barbero_id = ? AND token_hash != ?').bind(b.id, mia).run();
+  return c.json({ ok: true });
 });
 
 app.post('/api/auth/salir', async (c) => {
@@ -425,7 +448,8 @@ app.post('/api/auth/passkey/login/verificar', async (c) => {
 app.get('/api/agenda', personal, async (c) => {
   const s = c.get('sesion');
   const fecha = c.req.query('fecha') ?? ahoraLocal().slice(0, 10);
-  const barbero = s.rol === 'barbero' ? s.barbero_id : Number(c.req.query('barbero')) || s.barbero_id || null;
+  const propio = s.rol === 'dueno' && s.barbero_id ? await c.env.DB.prepare('SELECT atiende FROM barberos WHERE id = ?').bind(s.barbero_id).first<any>() : null;
+  const barbero = s.rol === 'barbero' ? s.barbero_id : Number(c.req.query('barbero')) || (propio?.atiende ? s.barbero_id : null);
   const [citas, bloqueos, horas, datos] = await Promise.all([
     c.env.DB.prepare(
       `SELECT c.id, c.codigo, c.barbero_id, c.inicio, c.estado, c.nombre, c.nombre_publico, c.telefono, c.servicios,
@@ -543,15 +567,15 @@ app.post('/api/barberos', dueno, async (c) => {
   const apodo = limpiarNombre(d.apodo) || null;
   if (d.id) {
     await c.env.DB.prepare(
-      `UPDATE barberos SET nombre = ?, apodo = ?, orden = ?, activo = ?, es_admin = ?, pin_hash = COALESCE(?, pin_hash),
+      `UPDATE barberos SET nombre = ?, apodo = ?, orden = ?, activo = ?, es_admin = ?, atiende = ?, pin_hash = COALESCE(?, pin_hash),
          pin_digitos = COALESCE(?, pin_digitos) WHERE id = ?`)
-      .bind(nombre, apodo, Number(d.orden) || 0, d.activo === false ? 0 : 1, admin, pin, pin ? pinTexto.length : null, Number(d.id)).run();
+      .bind(nombre, apodo, Number(d.orden) || 0, d.activo === false ? 0 : 1, admin, d.atiende === false ? 0 : 1, pin, pin ? pinTexto.length : null, Number(d.id)).run();
     // Al cambiar PIN o permisos se cierran sus sesiones, salvo la de quien está haciendo el cambio
     const mia = await sha256(c.req.header('authorization')!.replace(/^Bearer /, ''));
     await c.env.DB.prepare('DELETE FROM sesiones WHERE barbero_id = ? AND token_hash != ?').bind(Number(d.id), mia).run();
   } else {
-    await c.env.DB.prepare('INSERT INTO barberos (nombre, apodo, orden, pin_hash, pin_digitos, es_admin) VALUES (?,?,?,?,?,?)')
-      .bind(nombre, apodo, Number(d.orden) || 0, pin, pin ? pinTexto.length : 4, admin).run();
+    await c.env.DB.prepare('INSERT INTO barberos (nombre, apodo, orden, pin_hash, pin_digitos, es_admin, atiende) VALUES (?,?,?,?,?,?,?)')
+      .bind(nombre, apodo, Number(d.orden) || 0, pin, pin ? pinTexto.length : 4, admin, d.atiende === false ? 0 : 1).run();
   }
   return c.json({ ok: true });
 });

@@ -90,7 +90,7 @@ export async function disponibilidad(env: Env, fecha: string, opts: { sinAnticip
   if (fecha < hoy.slice(0, 10) || fecha > sumarDias(hoy.slice(0, 10), b.dias_anticipacion)) return [];
   const rango = JSON.parse(b.horario)[String(diaSemana(fecha))] as [string, string] | null;
   if (!rango) return [];
-  const barberos = (await env.DB.prepare('SELECT id FROM barberos WHERE activo = 1 ORDER BY orden, id').all<any>()).results;
+  const barberos = (await env.DB.prepare('SELECT id FROM barberos WHERE activo = 1 AND atiende = 1 ORDER BY orden, id').all<any>()).results;
   const ocupadas = (await env.DB.prepare(
     `SELECT barbero_id, inicio FROM citas WHERE inicio LIKE ?1 AND estado IN ${ESTADOS_VIVOS}
      UNION SELECT barbero_id, inicio FROM bloqueos WHERE inicio LIKE ?1`).bind(fecha + '%').all<any>()).results;

@@ -143,7 +143,7 @@ function responder(rutaCompleta: string, d: any, metodo: string, token: string |
   if (ruta.startsWith('/auth/passkey')) return mal('Face ID se activa cuando la app esté conectada a Cloudflare. En la demostración entra con el correo.', 400);
   if (ruta === '/auth/salir') return ok({ ok: true });
   if (!rol) return mal('Inicia sesión de nuevo.', 401);
-  if (ruta === '/auth/yo') return ok({ rol, barbero_id: miBarbero ?? (Number(token!.split('-')[2]) || null), usuario_id: token === 'demo-dueno' ? 1 : null, passkeys: 1 });
+  if (ruta === '/auth/yo') return ok({ rol, barbero_id: miBarbero ?? (Number(token!.split('-')[2]) || null), usuario_id: token === 'demo-dueno' ? 1 : null, passkeys: 1, cambiar_pin: false, atiende: true });
 
   if (ruta === '/agenda') {
     const fecha = p.get('fecha') ?? hoy, barbero = miBarbero ?? (Number(p.get('barbero')) || null);

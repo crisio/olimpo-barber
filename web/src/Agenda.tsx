@@ -16,7 +16,7 @@ export default function Agenda({ rol }: { rol: 'barbero' | 'dueno' }) {
   if (error && !datos) return <Aviso>{error.message}</Aviso>;
   if (!datos) return <Cargando />;
   const ahora: string = datos.ahora, hoy = ahora.slice(0, 10), dia: string = datos.fecha;
-  const barbero: number = datos.barbero_id ?? datos.barberos.find((x: any) => x.activo)?.id;
+  const barbero: number = datos.barbero_id ?? datos.barberos.find((x: any) => x.activo && x.atiende !== 0)?.id;
   const citas = datos.citas.filter((c: any) => c.barbero_id === barbero);
   const tol = datos.barberia.tolerancia_min;
   const esHoy = dia === hoy;
@@ -45,9 +45,9 @@ export default function Agenda({ rol }: { rol: 'barbero' | 'dueno' }) {
 
   return (
     <div>
-      {rol === 'dueno' && datos.barberos.length > 1 && (
+      {rol === 'dueno' && datos.barberos.filter((x: any) => x.activo && x.atiende !== 0).length > 1 && (
         <div className="mb-3 flex gap-2 overflow-x-auto">
-          {datos.barberos.filter((x: any) => x.activo).map((x: any) => (
+          {datos.barberos.filter((x: any) => x.activo && x.atiende !== 0).map((x: any) => (
             <button key={x.id} aria-pressed={x.id === barbero} onClick={() => setBarberoSel(x.id)}
               className={`titulo shrink-0 rounded-xl border-2 px-4 py-2 text-xl ${x.id === barbero ? 'border-crema bg-crema text-fondo' : 'border-borde'}`}>{x.apodo || x.nombre}</button>
           ))}
