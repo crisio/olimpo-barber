@@ -360,7 +360,7 @@ app.post('/api/auth/cambiar-pin', personal, async (c) => {
   const pin = String((await cuerpo(c)).pin ?? '');
   const b = s.barbero_id ? await c.env.DB.prepare('SELECT id, es_admin, pin_hash FROM barberos WHERE id = ?').bind(s.barbero_id).first<any>() : null;
   if (!b) return err(c, 'Esta sesión no usa PIN.');
-  if (b.es_admin ? !/^\d{6}$/.test(pin) : !/^(\d{4}|\d{6})$/.test(pin)) return err(c, b.es_admin ? 'El PIN debe tener 6 números.' : 'El PIN debe tener 4 o 6 números.');
+  if (!/^\d{6}$/.test(pin)) return err(c, 'El PIN debe tener 6 números.');
   if (PINES_OBVIOS.has(pin) || /^(\d)\1+$/.test(pin)) return err(c, 'Ese PIN es muy fácil de adivinar. Elige otro.');
   if (b.pin_hash && (await pinValido(pin, b.pin_hash))) return err(c, 'El PIN nuevo debe ser distinto al actual.');
   await c.env.DB.prepare('UPDATE barberos SET pin_hash = ?, pin_digitos = ?, debe_cambiar_pin = 0 WHERE id = ?').bind(await hashPin(pin), pin.length, b.id).run();
@@ -558,11 +558,11 @@ app.post('/api/barberos', dueno, async (c) => {
   const nombre = limpiarNombre(d.nombre);
   if (!nombre) return err(c, 'Escribe el nombre del barbero.');
   const pinTexto = d.pin ? String(d.pin) : '';
-  if (pinTexto && !/^(\d{4}|\d{6})$/.test(pinTexto)) return err(c, 'El PIN debe tener 4 o 6 números.');
+  if (pinTexto && !/^\d{6}$/.test(pinTexto)) return err(c, 'El PIN debe tener 6 números.');
   const admin = d.es_admin ? 1 : 0;
   const actual = d.id ? await c.env.DB.prepare('SELECT pin_digitos, pin_hash FROM barberos WHERE id = ?').bind(Number(d.id)).first<any>() : null;
   const digitos = pinTexto ? pinTexto.length : actual?.pin_hash ? actual.pin_digitos : 0;
-  if (admin && digitos !== 6) return err(c, 'Un administrador necesita un PIN de 6 números.');
+  if (admin && digitos !== 6) return err(c, 'Un administrador necesita un PIN de 6 números. Escríbele uno nuevo.');
   const pin = pinTexto ? await hashPin(pinTexto) : null;
   const apodo = limpiarNombre(d.apodo) || null;
   if (d.id) {

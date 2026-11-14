@@ -16,7 +16,7 @@ Citas en línea para Olimpo Barber. El cliente escanea un QR, elige día y hora,
 | `/` | Cliente | Inicio: horario, próxima hora libre, servicios y precios |
 | `/agendar` | Cliente | Reserva en 4 pasos |
 | `/c/CODIGO` | Cliente | Su cita: cuenta regresiva, ticket, cancelar, recuperar, avisos por WhatsApp |
-| `/barbero` | Barbero | Entra con PIN. Botones: Llegó, Terminé, No llegó, Pausa. Agrega clientes a mano. Pestaña **Mi QR** con la imagen para estados de WhatsApp. Si es administrador (PIN de 6 números) también entra al panel |
+| `/barbero` | Barbero | Entra con PIN. Botones: Llegó, Terminé, No llegó, Pausa. Agrega clientes a mano. Pestaña **Mi QR** con la imagen para estados de WhatsApp. Si es administrador también entra al panel |
 | `/dueno` | Dueño | Entra con código por correo o Face ID. Panel, agenda, ajustes, clientes, WhatsApp, cartel QR |
 | `/pantalla` | TV | Agenda del día en vivo, solo nombre e inicial |
 | `/privacidad` | Todos | Aviso de privacidad |
@@ -36,7 +36,7 @@ Citas en línea para Olimpo Barber. El cliente escanea un QR, elige día y hora,
 
 ## Modo demostración
 
-Si la web se publica sin la variable `API_URL`, funciona sola con datos de ejemplo guardados en el navegador, para revisar el diseño. Muestra una franja azul que lo indica. PIN de barbero: `1111`. Dueño: cualquier correo; el código aparece ya escrito.
+Si la web se publica sin la variable `API_URL`, funciona sola con datos de ejemplo guardados en el navegador, para revisar el diseño. Muestra una franja azul que lo indica. PIN de barbero: `111111`. Dueño: cualquier correo; el código aparece ya escrito.
 
 La guía para conectar Cloudflare paso a paso está en [`docs/CONFIGURAR-CLOUDFLARE.md`](docs/CONFIGURAR-CLOUDFLARE.md).
 
@@ -61,7 +61,7 @@ npm run dev            # http://localhost:5173
 
 Accesos de ejemplo (solo en local):
 
-- Barbero: "Edison" con PIN `1111`, "Kevin Mejía" con PIN `2222`.
+- Barbero: "Edison" con PIN `111111`, "Kevin Mejía" con PIN `222222`.
 - Dueño: correo `dueno@ejemplo.com`. En local no se envía correo; el código aparece ya escrito en la pantalla.
 - Citas de ejemplo: `/c/DEMD5` (próxima), `/c/DEMC4` (en la silla), `/c/DEMF7` (perdida, para probar el recargo).
 
@@ -144,7 +144,7 @@ Para conectar: crea una app en Meta for Developers con el producto WhatsApp, reg
 
 ## Acceso del personal
 
-- **Barbero**: entra en `/barbero` con su PIN (4 números, o 6 si es administrador).
+- **Barbero**: entra en `/barbero` con su PIN de 6 números.
 - **Administrador**: un barbero marcado como administrador ve además el botón **Panel**. También puede existir un administrador que no atiende clientes: entra con PIN pero no aparece para agendar.
 - **PIN temporal**: quien entra con un PIN marcado como temporal debe crear uno nuevo antes de poder hacer nada más.
 - **Dueño por correo**: sigue disponible con código de Resend y Face ID.
