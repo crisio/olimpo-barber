@@ -21,11 +21,11 @@ function nuevo() {
     const servicios = sv(...ids);
     return { id, codigo: cod, barbero_id, inicio, estado, nombre, nombre_publico: pub(nombre), telefono, dispositivo: null, servicios, total_l: servicios.reduce((t, s) => t + s.precio_l, 0), recargo_l: 0, origen: 'web', recuperada: 0, llego_en: null as string | null, terminado_en: null, no_llegadas: 0, visitas: 0, ...extra };
   };
-  const todoElDia = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, ['00:00', '23:00']]));
+  // Mismo horario que la barbería real: lunes a sábado de 10 a.m. a 9 p.m., almuerzo de 12 a 1
+  const horario = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, d === 0 ? null : ['10:00', '21:00']]));
   return {
     dia: hoy, sig: 20,
-    // En la demostración la barbería abre todo el día para poder probar a cualquier hora
-    barberia: { id: 1, nombre: 'Olimpo Barber', direccion: 'Tegucigalpa, Honduras', whatsapp_numero: '50499990000', horario: todoElDia, almuerzo: null as [string, string] | null,
+    barberia: { id: 1, nombre: 'Olimpo Barber', direccion: 'Tegucigalpa, Honduras', whatsapp_numero: '50499990000', horario, almuerzo: ['12:00', '13:00'] as [string, string] | null,
       duracion_cita_min: 60, tolerancia_min: 10, recargo_l: 50, dias_anticipacion: 14, anticipacion_min: 60, agenda_abierta: 1, logo_key: null },
     barberos: [{ id: 1, nombre: 'Barbero Olimpo', apodo: 'Olimpo', foto_key: null, orden: 1, activo: 1, con_pin: 1 }, { id: 2, nombre: 'Kevin Mejía', apodo: 'Kevin', foto_key: null, orden: 2, activo: 1, con_pin: 1 }],
     servicios: S,

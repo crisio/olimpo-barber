@@ -65,7 +65,7 @@ Accesos de ejemplo (solo en local):
 - Dueño: correo `dueno@ejemplo.com`. En local no se envía correo; el código aparece ya escrito en la pantalla.
 - Citas de ejemplo: `/c/DEMD5` (próxima), `/c/DEMC4` (en la silla), `/c/DEMF7` (perdida, para probar el recargo).
 
-En local la barbería abre las 24 horas para poder probar a cualquier hora.
+En local se usa el mismo horario real (10:00 a.m. a 9:00 p.m.), así que fuera de ese horario solo verás horas para el día siguiente.
 
 ## Publicar
 
