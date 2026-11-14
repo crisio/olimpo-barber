@@ -8,7 +8,6 @@ import { Aviso, Cargando, Logo, Pagina, useDatos } from '../ui';
 export default function Barbero() {
   const [dentro, setDentro] = useState(!!token.leer());
   const { datos: yo, error } = useDatos<any>(dentro ? '/auth/yo' : null);
-  const { datos: cfg } = useDatos<any>('/barberia');
   const [vista, setVista] = useState<'agenda' | 'qr'>('agenda');
   if (dentro && error?.estado === 401) { token.guardar(null); setDentro(false); }
   if (!dentro) return <Entrar onListo={() => setDentro(true)} />;
@@ -27,7 +26,7 @@ export default function Barbero() {
       )}
       <div className="mt-4">
         {!yo ? <Cargando /> : vista === 'agenda' ? <Agenda rol={yo.rol} />
-          : <CompartirQR barberoId={yo.barbero_id} barberoNombre={cfg?.barberos.find((b: any) => b.id === yo.barbero_id)?.nombre} />}
+          : <CompartirQR barberoId={yo.barbero_id} />}
       </div>
     </Pagina>
   );

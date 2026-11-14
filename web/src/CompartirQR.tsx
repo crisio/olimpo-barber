@@ -4,8 +4,14 @@ import { Aviso } from './ui';
 
 const W = 1080, H = 1920; // tamaño de un estado de WhatsApp
 
+/** Dirección pública del sitio. En una computadora de pruebas (localhost) el QR igual apunta al sitio real. */
+export function urlPublica() {
+  const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+  return local ? (import.meta.env.VITE_WEB_URL || 'https://olimpobarberclub.pensolabs.com/') : `${location.origin}${import.meta.env.BASE_URL}`;
+}
+
 /** Dibuja la imagen vertical con el QR para publicar en estados. */
-async function dibujar(url: string, barbero?: string): Promise<HTMLCanvasElement> {
+async function dibujar(url: string): Promise<HTMLCanvasElement> {
   await Promise.all([document.fonts.load('800 100px "Barlow Condensed"'), document.fonts.load('600 40px "Barlow"')]).catch(() => {});
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d')!;
@@ -30,7 +36,7 @@ async function dibujar(url: string, barbero?: string): Promise<HTMLCanvasElement
   x.textAlign = 'left'; x.fillStyle = '#f3ead7'; x.fillText(a, ini, 320); x.fillStyle = '#e23a3a'; x.fillText(b, ini + x.measureText(a).width, 320);
   x.textAlign = 'center';
   titulo('AGENDA TU CITA', 520, 150, '#f3ead7');
-  texto(barbero ? `con ${barbero}` : 'Elige tu hora y llega directo', 600, 52, '#9aa1b2');
+  texto('Elige tu hora y llega directo', 600, 52, '#9aa1b2');
   // QR sobre tarjeta blanca
   const lado = 760, qx = (W - lado) / 2, qy = 690;
   x.fillStyle = '#ffffff'; x.beginPath(); x.roundRect(qx - 40, qy - 40, lado + 80, lado + 80, 48); x.fill();
@@ -43,20 +49,20 @@ async function dibujar(url: string, barbero?: string): Promise<HTMLCanvasElement
   return c;
 }
 
-export default function CompartirQR({ barberoId, barberoNombre }: { barberoId?: number | null; barberoNombre?: string }) {
-  const url = `${location.origin}${import.meta.env.BASE_URL}${barberoId ? `agendar?barbero=${barberoId}` : ''}`;
+export default function CompartirQR({ barberoId }: { barberoId?: number | null }) {
+  const url = `${urlPublica()}${barberoId ? `agendar?barbero=${barberoId}` : ''}`;
   const [img, setImg] = useState('');
   const [archivo, setArchivo] = useState<File | null>(null);
   const [msj, setMsj] = useState('');
   useEffect(() => {
     let vivo = true;
-    dibujar(url, barberoNombre).then((c) => c.toBlob((b) => {
+    dibujar(url).then((c) => c.toBlob((b) => {
       if (!b || !vivo) return;
       setArchivo(new File([b], 'olimpo-barber-qr.png', { type: 'image/png' }));
       setImg(c.toDataURL('image/png'));
     }, 'image/png')).catch(() => setMsj('No se pudo crear la imagen en este navegador.'));
     return () => { vivo = false; };
-  }, [url, barberoNombre]);
+  }, [url]);
 
   function descargar() {
     const a = document.createElement('a'); a.href = img; a.download = 'olimpo-barber-qr.png'; a.click();

@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { API, DEMO, L, api, hora12, token } from '../api';
 import Agenda from '../Agenda';
-import CompartirQR from '../CompartirQR';
+import CompartirQR, { urlPublica } from '../CompartirQR';
 import { Aviso, Carta, Cargando, Logo, Pagina, Poste, useDatos } from '../ui';
 
 const PESTANAS = ['Panel', 'Agenda', 'Ajustes', 'Clientes', 'WhatsApp', 'Cartel'] as const;
@@ -362,7 +362,7 @@ function WhatsApp() {
 }
 
 function Cartel({ barberoId }: { barberoId?: number | null }) {
-  const url = `${location.origin}${import.meta.env.BASE_URL}`;
+  const url = urlPublica();
   const [qr, setQr] = useState('');
   useEffect(() => { QRCode.toDataURL(url, { width: 900, margin: 1, errorCorrectionLevel: 'M' }).then(setQr); }, [url]);
   return (
