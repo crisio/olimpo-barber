@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  --color-fondo: #0d0f14;
+  --color-carta: #171a22;
+  --color-borde: #2a2f3b;
+  --color-crema: #f3ead7;
+  --color-tenue: #9aa1b2;
+  --color-rojo: #e23a3a;
+  --color-azul: #2f6bff;
+  --color-verde: #1fa971;
+  --font-titulo: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-sans: "Barlow", system-ui, sans-serif;
+}
+
+html, body { background: var(--color-fondo); color: var(--color-crema); font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; }
+body { min-height: 100dvh; }
+.titulo { font-family: var(--font-titulo); font-weight: 800; text-transform: uppercase; letter-spacing: .02em; line-height: .95; }
+/* Franjas de poste de barbero */
+.poste {
+  background: repeating-linear-gradient(135deg, var(--color-rojo) 0 12px, var(--color-crema) 12px 24px, var(--color-azul) 24px 36px, var(--color-crema) 36px 48px);
+}
+.poste-anim { background-size: 68px 68px; animation: poste 1.6s linear infinite; }
+@keyframes poste { to { background-position: 68px 0; } }
+@media (prefers-reduced-motion: reduce) { .poste-anim { animation: none; } }
+.ticket { border: 2px dashed var(--color-borde); border-radius: 1rem; background: var(--color-carta); }
+.btn { font-family: var(--font-titulo); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; border-radius: 1rem;
+  min-height: 3.5rem; padding: .75rem 1.25rem; font-size: 1.35rem; width: 100%; display: flex; align-items: center; justify-content: center; gap: .5rem;
+  transition: transform .08s, opacity .15s; cursor: pointer; }
+.btn:active { transform: scale(.98); }
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+.btn-rojo { background: var(--color-rojo); color: #fff; }
+.btn-azul { background: var(--color-azul); color: #fff; }
+.btn-verde { background: var(--color-verde); color: #fff; }
+.btn-crema { background: var(--color-crema); color: #0d0f14; }
+.btn-linea { background: transparent; color: var(--color-crema); border: 2px solid var(--color-borde); }
+.campo { width: 100%; background: #0d0f14; border: 2px solid var(--color-borde); border-radius: .9rem; padding: .85rem 1rem; font-size: 1.1rem; color: var(--color-crema); }
+.campo:focus { outline: none; border-color: var(--color-azul); }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--color-azul); outline-offset: 2px; }
+@media print {
+  html, body { background: #fff; color: #000; }
+  .no-imprimir { display: none !important; }
+}

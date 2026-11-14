@@ -1,0 +1,33 @@
+name = "turnoya-api"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Cuando el dominio esté en Cloudflare, descomenta y ajusta:
+# routes = [{ pattern = "api-turnoya.pensolabs.com", custom_domain = true }]
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "turnoya"
+database_id = "11118ae3-fac4-49dd-8bcf-f51906b297ab"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "ARCHIVOS"
+bucket_name = "turnoya-archivos"
+
+[vars]
+ENTORNO = "prod"
+# Orígenes permitidos de la web (separados por coma) y dominio para Face ID / passkeys
+ORIGEN_WEB = "https://turnoya.pensolabs.com,https://crisio.github.io"
+RP_ID = "turnoya.pensolabs.com"
+WEB_URL = "https://turnoya.pensolabs.com"
+RESEND_FROM = "Olimpo Barber <olimpobarberclub@pensolabs.com>"
+# Plantilla publicada en Resend (variables CODE, USER_NAME, EXPIRES_MINUTES)
+RESEND_PLANTILLA = "olimpo-verificacion"
+
+# Secretos (wrangler secret put ...): OWNER_EMAIL, RESEND_API_KEY, TURNSTILE_SECRET,
+# WA_TOKEN, WA_PHONE_ID, WA_VERIFY_TOKEN, WA_APP_SECRET, WA_PLANTILLA_RECORDATORIO
