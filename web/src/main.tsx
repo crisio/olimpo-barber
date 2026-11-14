@@ -9,6 +9,7 @@ import Barbero from './pages/Barbero';
 import Dueno from './pages/Dueno';
 import Pantalla from './pages/Pantalla';
 import Privacidad from './pages/Privacidad';
+import { iniciarRegistro } from './registro';
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -26,6 +27,8 @@ createRoot(document.getElementById('root')!).render(
     </BrowserRouter>
   </React.StrictMode>,
 );
+
+iniciarRegistro();
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {});

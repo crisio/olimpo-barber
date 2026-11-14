@@ -680,6 +680,44 @@ app.get('/api/clientes', dueno, async (c) => {
   return new Response('﻿' + csv, { headers: { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': 'attachment; filename="clientes-olimpo.csv"' } });
 });
 
+// ---------- Registro de uso (clics) ----------
+app.post('/api/eventos', async (c) => {
+  const d = await cuerpo(c);
+  const dispositivo = String(d.dispositivo ?? '').slice(0, 64);
+  const eventos = Array.isArray(d.eventos) ? d.eventos.slice(0, 40) : [];
+  if (!dispositivo || !eventos.length) return c.json({ ok: true });
+  const s = await leerSesion(c);
+  let usuario: string | null = null;
+  if (s?.barbero_id) usuario = (await c.env.DB.prepare('SELECT nombre FROM barberos WHERE id = ?').bind(s.barbero_id).first<any>())?.nombre ?? null;
+  else if (s) usuario = 'Dueño';
+  const texto = (v: unknown, max: number) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+  const ahora = Date.now();
+  await c.env.DB.batch(eventos.map((e: any) => {
+    // La hora la pone el servidor; el cliente solo indica hace cuánto ocurrió (máx. 10 min)
+    const hace = Math.min(600000, Math.max(0, Number(e?.hace_ms) || 0));
+    return c.env.DB.prepare('INSERT INTO eventos_clic (dispositivo, usuario, ruta, elemento, creado_en) VALUES (?,?,?,?,?)')
+      .bind(dispositivo, usuario, texto(e?.ruta, 80) || '/', texto(e?.elemento, 80) || '(sin texto)', new Date(ahora - hace).toISOString());
+  }));
+  return c.json({ ok: true });
+});
+
+app.get('/api/eventos/resumen', dueno, async (c) => {
+  const dias = c.req.query('rango') === 'semana' ? 7 : c.req.query('rango') === 'mes' ? 30 : 1;
+  const desde = new Date(Date.now() - dias * 864e5).toISOString();
+  const quien = c.req.query('quien') ?? '';
+  const filtro = quien ? `AND COALESCE(usuario, dispositivo) = ?2` : '';
+  const args = quien ? [desde, quien] : [desde];
+  const [porQuien, top, recientes, total] = await Promise.all([
+    c.env.DB.prepare(
+      `SELECT COALESCE(usuario, dispositivo) AS quien, usuario, COUNT(DISTINCT dispositivo) AS dispositivos, COUNT(*) AS clics, MAX(creado_en) AS ultimo
+       FROM eventos_clic WHERE creado_en >= ?1 GROUP BY quien ORDER BY ultimo DESC LIMIT 200`).bind(desde).all<any>(),
+    c.env.DB.prepare(`SELECT elemento, ruta, COUNT(*) AS clics FROM eventos_clic WHERE creado_en >= ?1 ${filtro} GROUP BY elemento, ruta ORDER BY clics DESC LIMIT 30`).bind(...args).all<any>(),
+    c.env.DB.prepare(`SELECT COALESCE(usuario, dispositivo) AS quien, usuario, ruta, elemento, creado_en FROM eventos_clic WHERE creado_en >= ?1 ${filtro} ORDER BY id DESC LIMIT 150`).bind(...args).all<any>(),
+    c.env.DB.prepare(`SELECT COUNT(*) AS clics, COUNT(DISTINCT dispositivo) AS dispositivos FROM eventos_clic WHERE creado_en >= ?1`).bind(desde).first<any>(),
+  ]);
+  return c.json({ total, por_quien: porQuien.results, top: top.results, recientes: recientes.results });
+});
+
 // ---------- WhatsApp ----------
 app.get('/api/whatsapp/webhook', (c) => {
   const q = c.req.query();

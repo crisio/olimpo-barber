@@ -25,7 +25,7 @@ function nuevo() {
   const horario = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [d, d === 0 ? null : ['10:00', '21:00']]));
   return {
     dia: hoy, sig: 20,
-    barberia: { id: 1, nombre: 'Olimpo Barber Club', direccion: 'Tegucigalpa, Honduras', whatsapp_numero: '50499990000', horario, almuerzo: ['12:00', '13:00'] as [string, string] | null,
+    barberia: { id: 1, nombre: 'Olimpo Barber Club', direccion: 'Quimistán, Santa Bárbara', whatsapp_numero: '50499990000', horario, almuerzo: ['12:00', '13:00'] as [string, string] | null,
       duracion_cita_min: 60, tolerancia_min: 10, recargo_l: 50, dias_anticipacion: 14, anticipacion_min: 60, agenda_abierta: 1, logo_key: null },
     barberos: [{ id: 1, nombre: 'Edison', apodo: null as string | null, foto_key: null, orden: 1, activo: 1, con_pin: 1, es_admin: 1, pin_digitos: 6 }, { id: 2, nombre: 'Kevin Mejía', apodo: 'Kevin', foto_key: null, orden: 2, activo: 1, con_pin: 1, es_admin: 0, pin_digitos: 6 }],
     servicios: S,
@@ -194,6 +194,7 @@ function responder(rutaCompleta: string, d: any, metodo: string, token: string |
       por_servicio: Object.values(porServicio), por_hora: Object.entries(porHora).sort().map(([hora, cantidad]) => ({ hora, cantidad })) });
   }
   if (ruta === '/clientes') return ok({ clientes: E.clientes });
+  if (ruta === '/eventos/resumen') return ok({ total: { clics: 0, dispositivos: 0 }, por_quien: [], top: [], recientes: [] });
   if (ruta === '/whatsapp/estado') return ok({ modo: 'simulado', webhook_listo: false, plantilla_recordatorio: null, mensajes: E.mensajes.slice(0, 60) });
   if (ruta === '/whatsapp/prueba') { const t = tel(d.telefono); if (!t) return mal('Revisa el número (8 dígitos).', 400); wa('saliente', t, d.texto || 'Prueba de TurnoYa · Olimpo Barber Club ✂️', 'simulado'); return ok({ estado: 'simulado' }); }
   if (ruta === '/whatsapp/simular') {

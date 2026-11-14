@@ -154,6 +154,7 @@ export async function tareasProgramadas(env: Env, ahora: string, limite: string,
     env.DB.prepare(`UPDATE clientes SET telefono = NULL WHERE telefono IS NOT NULL AND COALESCE(ultima_cita, creado_en) < ?`).bind(hace90),
     env.DB.prepare(`DELETE FROM whatsapp_mensajes WHERE creado_en < ?`).bind(hace90),
     env.DB.prepare(`DELETE FROM intentos WHERE cuando < ?`).bind(hace90),
+    env.DB.prepare(`DELETE FROM eventos_clic WHERE creado_en < ?`).bind(hace90),
     env.DB.prepare(`DELETE FROM sesiones WHERE expira_en < ?`).bind(new Date().toISOString()),
   ]);
 }
