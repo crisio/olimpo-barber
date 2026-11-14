@@ -27,7 +27,7 @@ function nuevo() {
     dia: hoy, sig: 20,
     barberia: { id: 1, nombre: 'Olimpo Barber Club', direccion: 'Tegucigalpa, Honduras', whatsapp_numero: '50499990000', horario, almuerzo: ['12:00', '13:00'] as [string, string] | null,
       duracion_cita_min: 60, tolerancia_min: 10, recargo_l: 50, dias_anticipacion: 14, anticipacion_min: 60, agenda_abierta: 1, logo_key: null },
-    barberos: [{ id: 1, nombre: 'Barbero Olimpo', apodo: 'Olimpo', foto_key: null, orden: 1, activo: 1, con_pin: 1, es_admin: 1, pin_digitos: 4 }, { id: 2, nombre: 'Kevin Mejía', apodo: 'Kevin', foto_key: null, orden: 2, activo: 1, con_pin: 1, es_admin: 0, pin_digitos: 4 }],
+    barberos: [{ id: 1, nombre: 'Edison', apodo: null as string | null, foto_key: null, orden: 1, activo: 1, con_pin: 1, es_admin: 1, pin_digitos: 4 }, { id: 2, nombre: 'Kevin Mejía', apodo: 'Kevin', foto_key: null, orden: 2, activo: 1, con_pin: 1, es_admin: 0, pin_digitos: 4 }],
     servicios: S,
     citas: [
       cita(1, 'DEMA2', 1, h(-2), 'terminada', 'Marlon Pineda', [1], null, { llego_en: sumarMin(h(-2), 3) }),

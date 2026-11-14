@@ -9,4 +9,4 @@ INSERT INTO servicios (nombre, descripcion, precio_l, orden)
 INSERT INTO servicios (nombre, descripcion, precio_l, orden)
  SELECT 'Cejas', 'Limpieza y diseño de cejas', 50, 3 WHERE (SELECT COUNT(*) FROM servicios) = 2;
 INSERT INTO barberos (nombre, apodo, orden)
- SELECT 'Barbero Olimpo', 'Olimpo', 1 WHERE NOT EXISTS (SELECT 1 FROM barberos);
+ SELECT 'Edison', NULL, 1 WHERE NOT EXISTS (SELECT 1 FROM barberos);

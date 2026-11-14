@@ -61,7 +61,7 @@ npm run dev            # http://localhost:5173
 
 Accesos de ejemplo (solo en local):
 
-- Barbero: "Barbero Olimpo" con PIN `1111`, "Kevin Mejía" con PIN `2222`.
+- Barbero: "Edison" con PIN `1111`, "Kevin Mejía" con PIN `2222`.
 - Dueño: correo `dueno@ejemplo.com`. En local no se envía correo; el código aparece ya escrito en la pantalla.
 - Citas de ejemplo: `/c/DEMD5` (próxima), `/c/DEMC4` (en la silla), `/c/DEMF7` (perdida, para probar el recargo).
 
