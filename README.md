@@ -86,8 +86,8 @@ Variables:
 
 | Nombre | Ejemplo | Qué es |
 |---|---|---|
-| `API_URL` | `https://api.turnoya.tudominio.com` | Dirección pública del Worker |
-| `DOMINIO_WEB` | `turnoya.tudominio.com` | Dominio de la web. Vacío = se publica en `crisio.github.io/olimpo-barber` |
+| `API_URL` | `https://api-turnoya.pensolabs.com` | Dirección pública del Worker |
+| `DOMINIO_WEB` | `olimpobarberclub.pensolabs.com` | Dominio de la web. Vacío = se publica en `crisio.github.io/olimpo-barber` |
 | `TURNSTILE_SITEKEY` | — | Opcional. Clave pública de Turnstile |
 
 Además, en **Settings → Pages**, elige **Source: GitHub Actions**.
