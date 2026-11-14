@@ -8,6 +8,7 @@ import {
   Env, utc, ahoraLocal, sumarMin, sumarDias, minutosEntre, sha256, aleatorioHex, hashPin, pinValido,
   codigoCorto, nombrePublico, normalizarTel, disponibilidad, ESTADOS_VIVOS,
 } from './lib';
+import { clavesVapid, enviarPush, guardarSuscripcion, notificarPersonal } from './push';
 import { enviarWA, ofrecerHora, procesarEntrante, firmaValida, manejarWebhook, tareasProgramadas, waConfigurado } from './whatsapp';
 
 type Sesion = { rol: 'dueno' | 'barbero'; usuario_id: number | null; barbero_id: number | null; cambiar?: number };
@@ -76,7 +77,7 @@ const COLS_CITA_PUBLICA = `c.codigo, c.inicio, c.estado, c.nombre_publico, c.ser
 async function datosBarberia(env: Env) {
   const [b, barberos, servicios] = await Promise.all([
     env.DB.prepare('SELECT * FROM barberia WHERE id = 1').first<any>(),
-    env.DB.prepare('SELECT id, nombre, apodo, foto_key, orden, activo, (pin_hash IS NOT NULL) AS con_pin, es_admin, pin_digitos, atiende, debe_cambiar_pin FROM barberos ORDER BY orden, id').all<any>(),
+    env.DB.prepare('SELECT id, nombre, apodo, foto_key, orden, activo, (pin_hash IS NOT NULL) AS con_pin, es_admin, pin_digitos, atiende, debe_cambiar_pin, telefono FROM barberos ORDER BY orden, id').all<any>(),
     env.DB.prepare('SELECT * FROM servicios ORDER BY orden, id').all<any>(),
   ]);
   return { barberia: { ...b, horario: JSON.parse(b.horario), almuerzo: b.almuerzo ? JSON.parse(b.almuerzo) : null }, barberos: barberos.results, servicios: servicios.results };
@@ -92,7 +93,7 @@ app.get('/api/barberia', async (c) => {
   }
   return c.json({
     ...d,
-    barberos: d.barberos.filter((x: any) => x.activo && x.atiende).map(({ es_admin, debe_cambiar_pin, ...x }: any) => x),
+    barberos: d.barberos.filter((x: any) => x.activo && x.atiende).map(({ es_admin, debe_cambiar_pin, telefono, ...x }: any) => x),
     // Quiénes pueden entrar con PIN (incluye administradores que no atienden)
     personal: d.barberos.filter((x: any) => x.activo && x.con_pin).map((x: any) => ({ id: x.id, nombre: x.nombre, apodo: x.apodo, pin_digitos: x.pin_digitos })),
     servicios: d.servicios.filter((x: any) => x.activo),
@@ -212,6 +213,7 @@ app.post('/api/citas', async (c) => {
   });
   if ('error' in r) return err(c, r.error, 409);
   await anotarIntento(c, `cita:${ip(c)}`);
+  c.executionCtx.waitUntil(notificarPersonal(c.env, r.codigo, 'nueva').catch((e) => console.error('aviso', e)));
   return c.json(r);
 });
 
@@ -234,6 +236,7 @@ app.post('/api/citas/:codigo/cancelar', async (c) => {
   if (!r.meta.changes) return err(c, 'Esta cita ya no se puede cancelar.', 409);
   const libre = await c.env.DB.prepare('SELECT inicio FROM citas WHERE codigo = ?').bind(c.req.param('codigo').toUpperCase()).first<any>();
   c.executionCtx.waitUntil(ofrecerHora(c.env, libre.inicio, ahoraLocal()).catch((e) => console.error('ofrecer', e)));
+  c.executionCtx.waitUntil(notificarPersonal(c.env, c.req.param('codigo').toUpperCase(), 'cancelada').catch((e) => console.error('aviso', e)));
   return c.json({ ok: true });
 });
 
@@ -251,6 +254,7 @@ app.post('/api/citas/:codigo/mover', async (c) => {
     await c.env.DB.prepare('UPDATE citas SET inicio = ?, barbero_id = ?, recordatorio_enviado = 0 WHERE id = ?').bind(inicio, barbero, cita.id).run();
   } catch { return err(c, 'Esa hora se acaba de ocupar. Elige otra.', 409); }
   c.executionCtx.waitUntil(ofrecerHora(c.env, cita.inicio, ahora).catch((e) => console.error('ofrecer', e)));
+  c.executionCtx.waitUntil(notificarPersonal(c.env, cita.codigo, 'movida').catch((e) => console.error('aviso', e)));
   return c.json({ ok: true });
 });
 
@@ -268,6 +272,7 @@ app.post('/api/citas/:codigo/recuperar', async (c) => {
   });
   if ('error' in r) return err(c, r.error, 409);
   await c.env.DB.prepare('UPDATE citas SET recuperada = 1 WHERE id = ?').bind(vieja.id).run();
+  c.executionCtx.waitUntil(notificarPersonal(c.env, r.codigo, 'recuperada').catch((e) => console.error('aviso', e)));
   return c.json(r);
 });
 
@@ -444,6 +449,24 @@ app.post('/api/auth/passkey/login/verificar', async (c) => {
   return c.json({ token: await crearSesion(c, { rol: 'dueno', usuario_id: pk.usuario_id, barbero_id: null }), rol: 'dueno' });
 });
 
+// ---------- Notificaciones push del personal ----------
+app.get('/api/push/clave', personal, async (c) => c.json({ clave: (await clavesVapid(c.env)).publicKey }));
+app.post('/api/push/suscribir', personal, async (c) => {
+  const s = c.get('sesion');
+  if (!(await guardarSuscripcion(c.env, await cuerpo(c), s.barbero_id, s.rol === 'dueno'))) return err(c, 'No se pudo activar en este dispositivo.');
+  return c.json({ ok: true });
+});
+app.post('/api/push/quitar', personal, async (c) => {
+  await c.env.DB.prepare('DELETE FROM suscripciones_push WHERE endpoint = ?').bind(String((await cuerpo(c)).endpoint ?? '')).run();
+  return c.json({ ok: true });
+});
+app.post('/api/push/prueba', personal, async (c) => {
+  const sub = await c.env.DB.prepare('SELECT endpoint, p256dh, auth FROM suscripciones_push WHERE endpoint = ?').bind(String((await cuerpo(c)).endpoint ?? '')).first<any>();
+  if (!sub) return err(c, 'Este dispositivo no tiene notificaciones activas.');
+  const r = await enviarPush(c.env, [sub], { titulo: 'Notificaciones activas', cuerpo: 'Así te avisaremos cuando alguien reserve.', url: 'barbero', etiqueta: 'prueba' });
+  return r.enviadas ? c.json({ ok: true }) : err(c, 'El envío de prueba falló. Intenta activar de nuevo.');
+});
+
 // ---------- Personal: agenda ----------
 app.get('/api/agenda', personal, async (c) => {
   const s = c.get('sesion');
@@ -565,17 +588,19 @@ app.post('/api/barberos', dueno, async (c) => {
   if (admin && digitos !== 6) return err(c, 'Un administrador necesita un PIN de 6 números. Escríbele uno nuevo.');
   const pin = pinTexto ? await hashPin(pinTexto) : null;
   const apodo = limpiarNombre(d.apodo) || null;
+  const telBarbero = d.telefono ? normalizarTel(d.telefono) : null;
+  if (d.telefono && !telBarbero) return err(c, 'Revisa el WhatsApp del barbero (8 dígitos).');
   if (d.id) {
     await c.env.DB.prepare(
-      `UPDATE barberos SET nombre = ?, apodo = ?, orden = ?, activo = ?, es_admin = ?, atiende = ?, pin_hash = COALESCE(?, pin_hash),
+      `UPDATE barberos SET nombre = ?, apodo = ?, orden = ?, activo = ?, es_admin = ?, atiende = ?, telefono = ?, pin_hash = COALESCE(?, pin_hash),
          pin_digitos = COALESCE(?, pin_digitos) WHERE id = ?`)
-      .bind(nombre, apodo, Number(d.orden) || 0, d.activo === false ? 0 : 1, admin, d.atiende === false ? 0 : 1, pin, pin ? pinTexto.length : null, Number(d.id)).run();
+      .bind(nombre, apodo, Number(d.orden) || 0, d.activo === false ? 0 : 1, admin, d.atiende === false ? 0 : 1, telBarbero, pin, pin ? pinTexto.length : null, Number(d.id)).run();
     // Al cambiar PIN o permisos se cierran sus sesiones, salvo la de quien está haciendo el cambio
     const mia = await sha256(c.req.header('authorization')!.replace(/^Bearer /, ''));
     await c.env.DB.prepare('DELETE FROM sesiones WHERE barbero_id = ? AND token_hash != ?').bind(Number(d.id), mia).run();
   } else {
-    await c.env.DB.prepare('INSERT INTO barberos (nombre, apodo, orden, pin_hash, pin_digitos, es_admin, atiende) VALUES (?,?,?,?,?,?,?)')
-      .bind(nombre, apodo, Number(d.orden) || 0, pin, pin ? pinTexto.length : 4, admin, d.atiende === false ? 0 : 1).run();
+    await c.env.DB.prepare('INSERT INTO barberos (nombre, apodo, orden, pin_hash, pin_digitos, es_admin, atiende, telefono) VALUES (?,?,?,?,?,?,?,?)')
+      .bind(nombre, apodo, Number(d.orden) || 0, pin, 6, admin, d.atiende === false ? 0 : 1, telBarbero).run();
   }
   return c.json({ ok: true });
 });

@@ -6,6 +6,7 @@ import { API, DEMO, L, api, hora12, token } from '../api';
 import Agenda from '../Agenda';
 import CompartirQR, { urlPublica } from '../CompartirQR';
 import { CambiarPin } from './Barbero';
+import Notificaciones from '../Notificaciones';
 import { Aviso, Carta, Cargando, Emblema, Logo, Pagina, Poste, useDatos } from '../ui';
 
 const PESTANAS = ['Panel', 'Agenda', 'Ajustes', 'Clientes', 'WhatsApp', 'Cartel'] as const;
@@ -119,6 +120,7 @@ function Panel({ yo, onPasskey }: { yo: any; onPasskey: () => void }) {
   const max = Math.max(1, ...(m?.por_hora ?? []).map((h: any) => h.cantidad));
   return (
     <div>
+      <Notificaciones />
       {msj && <div className="mb-3"><Aviso tono={msj.tono}>{msj.texto}</Aviso></div>}
       {yo.passkeys === 0 && !msj && (
         <Carta className="mb-4"><div className="font-semibold">Entra más rápido la próxima vez</div>
@@ -266,6 +268,7 @@ function FilaBarbero({ inicial, onGuardar, onFoto }: { inicial: any; onGuardar: 
         <input aria-label="Apodo" className="campo" placeholder="Apodo" value={x.apodo ?? ''} onChange={(e) => setX({ ...x, apodo: e.target.value })} />
         <input aria-label="PIN" className="campo" inputMode="numeric" maxLength={6} placeholder={x.con_pin ? 'Cambiar PIN' : 'PIN de 6 números'} value={x.pin} onChange={(e) => setX({ ...x, pin: e.target.value.replace(/\D/g, '') })} />
         {!x.nuevo && <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.activo} onChange={(e) => setX({ ...x, activo: e.target.checked ? 1 : 0 })} />Activo</label>}
+        <input aria-label="WhatsApp del barbero" className="campo col-span-2" inputMode="numeric" maxLength={9} placeholder="Su WhatsApp para avisos de citas (8 dígitos)" value={x.telefono ? String(x.telefono).replace(/^504/, '') : ''} onChange={(e) => setX({ ...x, telefono: e.target.value.replace(/[^\d-]/g, '') })} />
         <label className="col-span-2 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={x.atiende !== 0} onChange={(e) => setX({ ...x, atiende: e.target.checked ? 1 : 0 })} />Atiende clientes (aparece para agendar)</label>
         <label className="col-span-2 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.es_admin} onChange={(e) => setX({ ...x, es_admin: e.target.checked ? 1 : 0 })} />Administrador: entra al panel con su PIN</label>
       </div>

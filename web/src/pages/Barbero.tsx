@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { DEMO, api, token } from '../api';
 import Agenda from '../Agenda';
 import CompartirQR from '../CompartirQR';
+import Notificaciones from '../Notificaciones';
 import { Aviso, Cargando, Logo, Pagina, useDatos } from '../ui';
 
 export default function Barbero() {
@@ -26,7 +27,7 @@ export default function Barbero() {
         </div>
       )}
       <div className="mt-4">
-        {!yo ? <Cargando /> : vista === 'agenda' ? <Agenda rol={yo.rol} />
+        {!yo ? <Cargando /> : vista === 'agenda' ? <><Notificaciones /><Agenda rol={yo.rol} /></>
           : <CompartirQR barberoId={yo.atiende ? yo.barbero_id : null} />}
       </div>
     </Pagina>
