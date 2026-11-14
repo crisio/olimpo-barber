@@ -1,7 +1,7 @@
--- Datos de ejemplo SOLO para desarrollo local (PIN: Olimpo 1111, Kevin 2222)
-UPDATE barberos SET pin_hash = 'a1b2c3d4e5f60718:b1b825e42796cfe77cdcecbde92ae2514d563effd7e44abe620682f3495af200' WHERE id = 1;
-INSERT INTO barberos (nombre, apodo, orden, pin_hash) VALUES
- ('Kevin Mejía', 'Kevin', 2, '0f1e2d3c4b5a6978:d68091e3d7d0fe79016c171676edb485f9c6e31de87bd5392d0acbbf6f8520ca');
+-- Datos de ejemplo SOLO para desarrollo local (PIN: Edison 111111, Kevin 222222)
+UPDATE barberos SET pin_digitos = 6, pin_hash = 'a1b2c3d4e5f60718:388d24c1a3e09d1340b56d0760566e76cdbee6636699115302ce691c7d950d9d' WHERE id = 1;
+INSERT INTO barberos (nombre, apodo, orden, pin_digitos, pin_hash) VALUES
+ ('Kevin Mejía', 'Kevin', 2, 6, '0f1e2d3c4b5a6978:fc819a5df9491bb83fef0fbe4c409d2129b4d696a80f5a519009a06e2ce85afa');
 UPDATE barberia SET whatsapp_numero = '50499990000';
 INSERT INTO clientes (telefono, nombre, consentimiento, wa_verificado, ultimo_entrante_en, visitas, creado_en) VALUES
  ('50433112233', 'Óscar López', 1, 1, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 3, strftime('%Y-%m-%dT%H:%M:%SZ','now')),

@@ -11,7 +11,7 @@ export default function Barbero() {
   const [vista, setVista] = useState<'agenda' | 'qr'>('agenda');
   if (dentro && error?.estado === 401) { token.guardar(null); setDentro(false); }
   if (!dentro) return <Entrar onListo={() => setDentro(true)} />;
-  if (yo?.cambiar_pin) return <CambiarPin seis={yo.rol === 'dueno'} onListo={recargar} />;
+  if (yo?.cambiar_pin) return <CambiarPin onListo={recargar} />;
   return (
     <Pagina>
       <div className="flex items-center justify-between">
@@ -34,11 +34,11 @@ export default function Barbero() {
 }
 
 /** Pantalla obligatoria cuando se entró con un PIN temporal. */
-export function CambiarPin({ seis, onListo }: { seis: boolean; onListo: () => void }) {
+export function CambiarPin({ onListo }: { onListo: () => void }) {
   const [a, setA] = useState('');
   const [b, setB] = useState('');
   const [fallo, setFallo] = useState('');
-  const largoOk = seis ? a.length === 6 : a.length === 4 || a.length === 6;
+  const largoOk = a.length === 6;
   async function guardar(e: React.FormEvent) {
     e.preventDefault();
     if (a !== b) { setFallo('Los dos PIN no coinciden.'); return; }
@@ -54,7 +54,7 @@ export function CambiarPin({ seis, onListo }: { seis: boolean; onListo: () => vo
       <Logo />
       <form className="mt-6" onSubmit={guardar}>
         <h1 className="titulo text-5xl">Crea tu PIN</h1>
-        <p className="mt-2 text-tenue">Entraste con un PIN temporal. Elige uno nuevo de {seis ? '6 números' : '4 o 6 números'} que solo tú conozcas.</p>
+        <p className="mt-2 text-tenue">Entraste con un PIN temporal. Elige uno nuevo de 6 números que solo tú conozcas.</p>
         {fallo && <div className="mt-4"><Aviso>{fallo}</Aviso></div>}
         {campo('pin-nuevo', 'PIN nuevo', a, setA)}
         {campo('pin-repetir', 'Repite el PIN', b, setB)}
@@ -75,7 +75,7 @@ function Entrar({ onListo }: { onListo: () => void }) {
   }
   function tecla(d: string) {
     setFallo('');
-    const largo = quien.pin_digitos ?? 4;
+    const largo = 6; // todos los PIN son de 6 números
     const p = (pin + d).slice(0, largo);
     setPin(p);
     if (p.length === largo) probar(p);
@@ -96,8 +96,8 @@ function Entrar({ onListo }: { onListo: () => void }) {
       ) : (
         <div className="mt-6">
           <h1 className="titulo text-5xl">PIN de {quien.apodo || quien.nombre}</h1>
-          <div className="mt-4 flex justify-center gap-3" aria-label={`${pin.length} de ${quien.pin_digitos ?? 4} dígitos`}>
-            {Array.from({ length: quien.pin_digitos ?? 4 }, (_, i) => i).map((i) => <div key={i} className={`h-5 w-5 rounded-full border-2 border-crema ${i < pin.length ? 'bg-crema' : ''}`} />)}
+          <div className="mt-4 flex justify-center gap-3" aria-label={`${pin.length} de 6 dígitos`}>
+            {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className={`h-5 w-5 rounded-full border-2 border-crema ${i < pin.length ? 'bg-crema' : ''}`} />)}
           </div>
           {fallo && <div className="mt-4"><Aviso>{fallo}</Aviso></div>}
           <div className="mt-5 grid grid-cols-3 gap-2">
@@ -106,7 +106,7 @@ function Entrar({ onListo }: { onListo: () => void }) {
             <button className="btn btn-linea !min-h-20 !text-4xl" onClick={() => tecla('0')}>0</button>
             <button className="btn btn-linea !min-h-20 !text-lg" onClick={() => setPin(pin.slice(0, -1))}>Borrar</button>
           </div>
-          <p className="mt-4 text-center text-sm text-tenue">{DEMO ? 'En la demostración el PIN es 1111.' : '¿No tienes PIN? Pídeselo al dueño.'}</p>
+          <p className="mt-4 text-center text-sm text-tenue">{DEMO ? 'En la demostración el PIN es 111111.' : '¿No tienes PIN? Pídeselo al dueño.'}</p>
         </div>
       )}
     </Pagina>
