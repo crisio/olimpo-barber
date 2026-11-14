@@ -1,0 +1,4 @@
+ENTORNO=dev
+ORIGEN_WEB=http://localhost:5173
+RP_ID=localhost
+OWNER_EMAIL=dueno@ejemplo.com
