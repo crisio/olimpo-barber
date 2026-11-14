@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { API, DEMO, L, api, hora12, token } from '../api';
 import Agenda from '../Agenda';
+import CompartirQR from '../CompartirQR';
 import { Aviso, Carta, Cargando, Logo, Pagina, Poste, useDatos } from '../ui';
 
 const PESTANAS = ['Panel', 'Agenda', 'Ajustes', 'Clientes', 'WhatsApp', 'Cartel'] as const;
@@ -36,7 +37,7 @@ export default function Dueno() {
         {tab === 'Ajustes' && <Ajustes />}
         {tab === 'Clientes' && <Clientes />}
         {tab === 'WhatsApp' && <WhatsApp />}
-        {tab === 'Cartel' && <Cartel />}
+        {tab === 'Cartel' && <Cartel barberoId={yo.barbero_id} />}
       </div>
     </Pagina>
   );
@@ -87,7 +88,8 @@ function Entrar({ onListo }: { onListo: () => void }) {
           <button type="button" className="btn btn-linea mt-2" onClick={() => { setEnviado(false); setCodigo(''); }}>Usar otro correo</button>
         </form>
       )}
-      <p className="mt-6 text-center text-sm text-tenue"><Link className="underline" to="/barbero">Soy barbero</Link> · <Link className="underline" to="/">Inicio</Link></p>
+      <Link className="btn btn-linea mt-6" to="/barbero">Entrar con mi PIN de barbero</Link>
+      <p className="mt-4 text-center text-sm text-tenue"><Link className="underline" to="/">Inicio</Link></p>
     </Pagina>
   );
 }
@@ -256,12 +258,13 @@ function FilaBarbero({ inicial, onGuardar, onFoto }: { inicial: any; onGuardar: 
     if (!r.ok) alert((await r.json().catch(() => ({}))).error ?? 'No se pudo subir la foto.'); else onFoto();
   }
   return (
-    <form className="rounded-xl border border-borde p-3" onSubmit={(e) => { e.preventDefault(); onGuardar({ ...x, activo: !!x.activo, pin: x.pin || undefined }); if (x.nuevo) setX({ ...inicial, pin: '' }); else setX({ ...x, pin: '' }); }}>
+    <form className="rounded-xl border border-borde p-3" onSubmit={(e) => { e.preventDefault(); onGuardar({ ...x, activo: !!x.activo, es_admin: !!x.es_admin, pin: x.pin || undefined }); if (x.nuevo) setX({ ...inicial, pin: '' }); else setX({ ...x, pin: '' }); }}>
       <div className="grid grid-cols-2 gap-2">
         <input aria-label="Nombre del barbero" className="campo" placeholder={x.nuevo ? 'Nuevo barbero' : 'Nombre'} value={x.nombre} onChange={(e) => setX({ ...x, nombre: e.target.value })} />
         <input aria-label="Apodo" className="campo" placeholder="Apodo" value={x.apodo ?? ''} onChange={(e) => setX({ ...x, apodo: e.target.value })} />
-        <input aria-label="PIN" className="campo" inputMode="numeric" maxLength={4} placeholder={x.con_pin ? 'Cambiar PIN' : 'PIN de 4 números'} value={x.pin} onChange={(e) => setX({ ...x, pin: e.target.value.replace(/\D/g, '') })} />
+        <input aria-label="PIN" className="campo" inputMode="numeric" maxLength={6} placeholder={x.con_pin ? 'Cambiar PIN' : 'PIN de 4 o 6 números'} value={x.pin} onChange={(e) => setX({ ...x, pin: e.target.value.replace(/\D/g, '') })} />
         {!x.nuevo && <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.activo} onChange={(e) => setX({ ...x, activo: e.target.checked ? 1 : 0 })} />Activo</label>}
+        <label className="col-span-2 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.es_admin} onChange={(e) => setX({ ...x, es_admin: e.target.checked ? 1 : 0 })} />Administrador: entra al panel con su PIN (6 números)</label>
       </div>
       <div className="mt-2 flex items-center gap-3">
         <button className="btn btn-linea !min-h-11 !w-auto !text-lg" disabled={!x.nombre.trim()}>{x.nuevo ? 'Agregar' : 'Guardar'}</button>
@@ -358,7 +361,7 @@ function WhatsApp() {
   );
 }
 
-function Cartel() {
+function Cartel({ barberoId }: { barberoId?: number | null }) {
   const url = `${location.origin}${import.meta.env.BASE_URL}`;
   const [qr, setQr] = useState('');
   useEffect(() => { QRCode.toDataURL(url, { width: 900, margin: 1, errorCorrectionLevel: 'M' }).then(setQr); }, [url]);
@@ -375,6 +378,7 @@ function Cartel() {
         <div className="mt-3 text-lg font-semibold">Sin descargar nada · sin crear cuenta</div>
         <div className="mt-1 text-sm">Llega puntual: 10 minutos de tolerancia</div>
       </div>
+      <div className="no-imprimir mt-10 border-t border-borde pt-6"><CompartirQR barberoId={barberoId} /></div>
     </div>
   );
 }

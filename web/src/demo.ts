@@ -27,7 +27,7 @@ function nuevo() {
     dia: hoy, sig: 20,
     barberia: { id: 1, nombre: 'Olimpo Barber', direccion: 'Tegucigalpa, Honduras', whatsapp_numero: '50499990000', horario, almuerzo: ['12:00', '13:00'] as [string, string] | null,
       duracion_cita_min: 60, tolerancia_min: 10, recargo_l: 50, dias_anticipacion: 14, anticipacion_min: 60, agenda_abierta: 1, logo_key: null },
-    barberos: [{ id: 1, nombre: 'Barbero Olimpo', apodo: 'Olimpo', foto_key: null, orden: 1, activo: 1, con_pin: 1 }, { id: 2, nombre: 'Kevin Mejía', apodo: 'Kevin', foto_key: null, orden: 2, activo: 1, con_pin: 1 }],
+    barberos: [{ id: 1, nombre: 'Barbero Olimpo', apodo: 'Olimpo', foto_key: null, orden: 1, activo: 1, con_pin: 1, es_admin: 1, pin_digitos: 4 }, { id: 2, nombre: 'Kevin Mejía', apodo: 'Kevin', foto_key: null, orden: 2, activo: 1, con_pin: 1, es_admin: 0, pin_digitos: 4 }],
     servicios: S,
     citas: [
       cita(1, 'DEMA2', 1, h(-2), 'terminada', 'Marlon Pineda', [1], null, { llego_en: sumarMin(h(-2), 3) }),
@@ -94,7 +94,7 @@ export function demoApi(ruta: string, d: any, metodo: string, token: string | nu
 function responder(rutaCompleta: string, d: any, metodo: string, token: string | null): R {
   const [ruta, q = ''] = rutaCompleta.split('?');
   const p = new URLSearchParams(q), a = ahora(), hoy = a.slice(0, 10);
-  const rol = token === 'demo-dueno' ? 'dueno' : token?.startsWith('demo-barbero-') ? 'barbero' : null;
+  const rol = token?.startsWith('demo-dueno') ? 'dueno' : token?.startsWith('demo-barbero-') ? 'barbero' : null;
   const miBarbero = rol === 'barbero' ? Number(token!.split('-')[2]) : null;
   let m: RegExpMatchArray | null;
 
@@ -136,13 +136,14 @@ function responder(rutaCompleta: string, d: any, metodo: string, token: string |
   }
 
   // Acceso (en la demostración: PIN 1111 y cualquier correo con el código que aparece en pantalla)
+  if (ruta === '/auth/pin' && d.pin === '1111' && E.barberos.find((b) => b.id === Number(d.barbero_id))?.es_admin) return ok({ token: `demo-dueno-${d.barbero_id}`, rol: 'dueno' });
   if (ruta === '/auth/pin') return d.pin === '1111' ? ok({ token: `demo-barbero-${d.barbero_id}`, rol: 'barbero' }) : mal('PIN incorrecto. En la demostración el PIN es 1111.', 401);
   if (ruta === '/auth/codigo') return ok({ ok: true, codigo_dev: '123456' });
   if (ruta === '/auth/verificar') return d.codigo === '123456' ? ok({ token: 'demo-dueno', rol: 'dueno' }) : mal('Código incorrecto o vencido.', 401);
   if (ruta.startsWith('/auth/passkey')) return mal('Face ID se activa cuando la app esté conectada a Cloudflare. En la demostración entra con el correo.', 400);
   if (ruta === '/auth/salir') return ok({ ok: true });
   if (!rol) return mal('Inicia sesión de nuevo.', 401);
-  if (ruta === '/auth/yo') return ok({ rol, barbero_id: miBarbero, usuario_id: rol === 'dueno' ? 1 : null, passkeys: 1 });
+  if (ruta === '/auth/yo') return ok({ rol, barbero_id: miBarbero ?? (Number(token!.split('-')[2]) || null), usuario_id: token === 'demo-dueno' ? 1 : null, passkeys: 1 });
 
   if (ruta === '/agenda') {
     const fecha = p.get('fecha') ?? hoy, barbero = miBarbero ?? (Number(p.get('barbero')) || null);
@@ -175,7 +176,7 @@ function responder(rutaCompleta: string, d: any, metodo: string, token: string |
   if (ruta === '/barberos' || ruta === '/servicios') {
     const lista = (ruta === '/barberos' ? E.barberos : E.servicios) as any[];
     const { pin, nuevo: _n, ...resto } = d;
-    const fila = { ...resto, activo: d.activo === false ? 0 : 1, ...(ruta === '/servicios' ? { precio_l: Number(d.precio_l) } : { con_pin: pin || d.con_pin ? 1 : 0 }) };
+    const fila = { ...resto, activo: d.activo === false ? 0 : 1, ...(ruta === '/servicios' ? { precio_l: Number(d.precio_l) } : { con_pin: pin || d.con_pin ? 1 : 0, es_admin: d.es_admin ? 1 : 0, pin_digitos: 4 }) };
     const i = lista.findIndex((x) => x.id === d.id);
     if (i >= 0) lista[i] = { ...lista[i], ...fila }; else lista.push({ ...fila, id: E.sig++, orden: lista.length + 1 });
     return ok({ ok: true });

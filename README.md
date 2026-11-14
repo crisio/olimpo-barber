@@ -16,7 +16,7 @@ Citas en línea para Olimpo Barber. El cliente escanea un QR, elige día y hora,
 | `/` | Cliente | Inicio: horario, próxima hora libre, servicios y precios |
 | `/agendar` | Cliente | Reserva en 4 pasos |
 | `/c/CODIGO` | Cliente | Su cita: cuenta regresiva, ticket, cancelar, recuperar, avisos por WhatsApp |
-| `/barbero` | Barbero | Entra con PIN. Botones: Llegó, Terminé, No llegó, Pausa. Agrega clientes a mano |
+| `/barbero` | Barbero | Entra con PIN. Botones: Llegó, Terminé, No llegó, Pausa. Agrega clientes a mano. Pestaña **Mi QR** con la imagen para estados de WhatsApp. Si es administrador (PIN de 6 números) también entra al panel |
 | `/dueno` | Dueño | Entra con código por correo o Face ID. Panel, agenda, ajustes, clientes, WhatsApp, cartel QR |
 | `/pantalla` | TV | Agenda del día en vivo, solo nombre e inicial |
 | `/privacidad` | Todos | Aviso de privacidad |

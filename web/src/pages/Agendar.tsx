@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ErrorApi, L, api, cuandoTexto, dispositivo, memoria } from '../api';
 import { Aviso, Cargando, Logo, Pagina, SelectorHora, useDatos } from '../ui';
 
@@ -26,7 +26,8 @@ export default function Agendar() {
   const [nombre, setNombre] = useState(memoria.leer('ty_nombre') ?? '');
   const [tel, setTel] = useState('');
   const [servicios, setServicios] = useState<number[]>([]);
-  const [barbero, setBarbero] = useState<number | null>(null);
+  const [params] = useSearchParams();
+  const [barbero, setBarbero] = useState<number | null>(Number(params.get('barbero')) || null);
   const [inicio, setInicio] = useState<string | null>(null);
   const [ts, setTs] = useState('');
   const [error, setError] = useState('');
@@ -35,6 +36,7 @@ export default function Agendar() {
 
   if (!datos) return <Pagina><Logo /><Cargando /></Pagina>;
   const { barberia: b, barberos, ahora } = datos;
+  if (barbero && !barberos.some((x: any) => x.id === barbero)) setBarbero(null);
   const elegidos = datos.servicios.filter((s: any) => servicios.includes(s.id));
   const total = elegidos.reduce((t: number, s: any) => t + s.precio_l, 0);
   const telOk = tel.replace(/\D/g, '').length === 0 || tel.replace(/\D/g, '').length === 8;
