@@ -301,7 +301,7 @@ app.post('/api/auth/codigo', async (c) => {
         if (r) console.error('Resend plantilla', r.status, await r.text());
         r = await enviar({
           subject: `${codigo} es tu código de TurnoYa`,
-          html: `<div style="font-family:sans-serif;max-width:420px"><h2>TurnoYa · Olimpo Barber</h2><p>Tu código para entrar es:</p><p style="font-size:34px;letter-spacing:6px;font-weight:700">${codigo}</p><p>Vence en 10 minutos. Si no lo pediste, ignora este correo.</p></div>`,
+          html: `<div style="font-family:sans-serif;max-width:420px"><h2>TurnoYa · Olimpo Barber Club</h2><p>Tu código para entrar es:</p><p style="font-size:34px;letter-spacing:6px;font-weight:700">${codigo}</p><p>Vence en 10 minutos. Si no lo pediste, ignora este correo.</p></div>`,
         });
         if (!r.ok) console.error('Resend', r.status, await r.text());
       }
@@ -400,7 +400,7 @@ app.post('/api/auth/passkey/registro/opciones', dueno, async (c) => {
   const u = await c.env.DB.prepare('SELECT * FROM usuarios WHERE id = ?').bind(s.usuario_id).first<any>();
   const ya = (await c.env.DB.prepare('SELECT id FROM passkeys WHERE usuario_id = ?').bind(u.id).all<any>()).results;
   const opciones = await generateRegistrationOptions({
-    rpName: 'TurnoYa · Olimpo Barber', rpID: c.env.RP_ID, userName: u.email,
+    rpName: 'TurnoYa · Olimpo Barber Club', rpID: c.env.RP_ID, userName: u.email,
     userID: new TextEncoder().encode(String(u.id)) as Uint8Array<ArrayBuffer>, attestationType: 'none',
     excludeCredentials: ya.map((p) => ({ id: p.id })),
     authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
@@ -545,7 +545,7 @@ app.put('/api/barberia', dueno, async (c) => {
   await c.env.DB.prepare(
     `UPDATE barberia SET nombre = ?, direccion = ?, whatsapp_numero = ?, horario = ?, duracion_cita_min = ?,
        tolerancia_min = ?, recargo_l = ?, dias_anticipacion = ?, agenda_abierta = ?, anticipacion_min = ?, almuerzo = ? WHERE id = 1`)
-    .bind(limpiarNombre(d.nombre) || 'Olimpo Barber', String(d.direccion ?? '').slice(0, 160), normalizarTel(d.whatsapp_numero),
+    .bind(limpiarNombre(d.nombre) || 'Olimpo Barber Club', String(d.direccion ?? '').slice(0, 160), normalizarTel(d.whatsapp_numero),
       JSON.stringify(horario), entero(d.duracion_cita_min, 15, 180, 60), entero(d.tolerancia_min, 0, 60, 10),
       Math.max(0, Math.round(Number(d.recargo_l)) || 0), entero(d.dias_anticipacion, 1, 60, 14), d.agenda_abierta ? 1 : 0,
       Math.min(1440, Math.max(0, Math.round(Number(d.anticipacion_min)) || 0)),
@@ -678,7 +678,7 @@ app.post('/api/whatsapp/prueba', dueno, async (c) => {
   const d = await cuerpo(c);
   const tel = normalizarTel(d.telefono);
   if (!tel) return err(c, 'Revisa el número (8 dígitos).');
-  const estado = await enviarWA(c.env, tel, String(d.texto || 'Prueba de TurnoYa · Olimpo Barber ✂️').slice(0, 500), { tipo: 'prueba' });
+  const estado = await enviarWA(c.env, tel, String(d.texto || 'Prueba de TurnoYa · Olimpo Barber Club ✂️').slice(0, 500), { tipo: 'prueba' });
   return c.json({ estado });
 });
 app.post('/api/whatsapp/simular', dueno, async (c) => {

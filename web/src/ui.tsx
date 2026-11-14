@@ -1,20 +1,27 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { DEMO, api, diaCorto, diaTexto, hora12, sumarDias } from './api';
+import { EMBLEMA } from './emblema';
 
+export const Emblema = ({ className = '' }: { className?: string }) => (
+  <svg viewBox="0 0 400 175" className={className} aria-hidden="true" dangerouslySetInnerHTML={{ __html: EMBLEMA }} />
+);
+
+/** Logo de Olimpo Barber Club: emblema con casco griego, laureles y navaja, y el nombre en serif. */
 export function Logo({ grande = false }: { grande?: boolean }) {
+  const raya = <span className="h-px w-6 bg-current opacity-70" aria-hidden="true" />;
+  if (grande) return (
+    <div className="flex flex-col items-center text-center" role="img" aria-label="Olimpo Barber Club">
+      <Emblema className="w-64" />
+      <div className="marca -mt-1 text-6xl">OLIMPO</div>
+      <div className="marca mt-1 flex items-center gap-3 text-lg tracking-[.3em]">{raya}BARBER CLUB{raya}</div>
+    </div>
+  );
   return (
-    <div className="flex items-center gap-3">
-      <svg viewBox="0 0 512 512" className={grande ? 'h-16 w-16' : 'h-11 w-11'} aria-hidden="true">
-        <g fill="none" stroke="#f3ead7" strokeWidth="18" strokeLinecap="round">
-          <path d="M150 380h212M166 344h180M176 150h160M160 116h192" />
-          <path d="M196 150v194M236 150v194M276 150v194M316 150v194" />
-        </g>
-        <path d="M256 60l112 56H144z" fill="#e23a3a" />
-        <rect x="150" y="402" width="212" height="22" rx="6" fill="#2f6bff" />
-      </svg>
+    <div className="flex items-center gap-2" role="img" aria-label="Olimpo Barber Club">
+      <Emblema className="h-12 w-auto" />
       <div>
-        <div className={`titulo ${grande ? 'text-5xl' : 'text-3xl'}`}>Olimpo <span className="text-rojo">Barber</span></div>
-        <div className="text-xs tracking-[.25em] text-tenue uppercase">TurnoYa · citas</div>
+        <div className="marca text-3xl leading-none">OLIMPO</div>
+        <div className="marca mt-1 text-[.7rem] tracking-[.3em]">BARBER CLUB</div>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { Aviso } from './ui';
+import { EMBLEMA } from './emblema';
 
 const W = 1080, H = 1920; // tamaño de un estado de WhatsApp
 
@@ -12,7 +13,7 @@ export function urlPublica() {
 
 /** Dibuja la imagen vertical con el QR para publicar en estados. */
 async function dibujar(url: string): Promise<HTMLCanvasElement> {
-  await Promise.all([document.fonts.load('800 100px "Barlow Condensed"'), document.fonts.load('600 40px "Barlow"')]).catch(() => {});
+  await Promise.all([document.fonts.load('800 100px "Barlow Condensed"'), document.fonts.load('600 40px "Barlow"'), document.fonts.load('500 100px "Playfair Display"')]).catch(() => {});
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d')!;
   x.fillStyle = '#0d0f14'; x.fillRect(0, 0, W, H);
@@ -30,22 +31,26 @@ async function dibujar(url: string): Promise<HTMLCanvasElement> {
   x.textAlign = 'center';
   const titulo = (t: string, y: number, px: number, color: string) => { x.font = `800 ${px}px "Barlow Condensed", "Arial Narrow", sans-serif`; x.fillStyle = color; x.fillText(t, W / 2, y); };
   const texto = (t: string, y: number, px: number, color: string, peso = 600) => { x.font = `${peso} ${px}px "Barlow", sans-serif`; x.fillStyle = color; x.fillText(t, W / 2, y); };
-  // OLIMPO BARBER en dos colores, centrado
-  x.font = '800 158px "Barlow Condensed", "Arial Narrow", sans-serif';
-  const a = 'OLIMPO ', b = 'BARBER', ancho = x.measureText(a + b).width, ini = (W - ancho) / 2;
-  x.textAlign = 'left'; x.fillStyle = '#f3ead7'; x.fillText(a, ini, 320); x.fillStyle = '#e23a3a'; x.fillText(b, ini + x.measureText(a).width, 320);
-  x.textAlign = 'center';
-  titulo('AGENDA TU CITA', 520, 150, '#f3ead7');
-  texto('Elige tu hora y llega directo', 600, 52, '#9aa1b2');
+  // Emblema y nombre de Olimpo Barber Club
+  const emblema = new Image();
+  emblema.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 175" color="#f3ead7">${EMBLEMA}</svg>`);
+  await emblema.decode().catch(() => {});
+  if (emblema.naturalWidth || emblema.complete) x.drawImage(emblema, (W - 720) / 2, 100, 720, 315);
+  const marca = (t: string, y: number, px: number) => { x.font = `500 ${px}px "Playfair Display", Didot, Georgia, serif`; x.fillStyle = '#f3ead7'; x.fillText(t, W / 2, y); };
+  marca('OLIMPO', 570, 190);
+  marca('B A R B E R   C L U B', 650, 54);
+  x.fillStyle = '#f3ead7'; x.fillRect(120, 632, 150, 3); x.fillRect(W - 270, 632, 150, 3);
+  titulo('AGENDA TU CITA', 830, 130, '#f3ead7');
+  texto('Elige tu hora y llega directo', 895, 46, '#9aa1b2');
   // QR sobre tarjeta blanca
-  const lado = 760, qx = (W - lado) / 2, qy = 690;
-  x.fillStyle = '#ffffff'; x.beginPath(); x.roundRect(qx - 40, qy - 40, lado + 80, lado + 80, 48); x.fill();
+  const lado = 640, qx = (W - lado) / 2, qy = 965;
+  x.fillStyle = '#ffffff'; x.beginPath(); x.roundRect(qx - 36, qy - 36, lado + 72, lado + 72, 44); x.fill();
   const qr = document.createElement('canvas');
   await QRCode.toCanvas(qr, url, { width: lado, margin: 0, errorCorrectionLevel: 'M' });
   x.drawImage(qr, qx, qy, lado, lado);
-  titulo('ESCANEA EL CÓDIGO', 1620, 96, '#f3ead7');
-  texto(new URL(url).host, 1700, 54, '#f3ead7');
-  texto('Gratis · sin descargar nada · sin crear cuenta', 1780, 40, '#9aa1b2', 400);
+  titulo('ESCANEA EL CÓDIGO', 1730, 76, '#f3ead7');
+  texto(new URL(url).host, 1790, 46, '#f3ead7');
+  texto('Gratis · sin descargar nada · sin crear cuenta', 1842, 34, '#9aa1b2', 400);
   return c;
 }
 
@@ -71,7 +76,7 @@ export default function CompartirQR({ barberoId }: { barberoId?: number | null }
   async function compartir() {
     if (!archivo) return;
     if (navigator.canShare?.({ files: [archivo] })) {
-      try { await navigator.share({ files: [archivo], text: `Agenda tu cita en Olimpo Barber: ${url}` }); }
+      try { await navigator.share({ files: [archivo], text: `Agenda tu cita en Olimpo Barber Club: ${url}` }); }
       catch (e: any) { if (e?.name !== 'AbortError') descargar(); }
     } else descargar();
   }

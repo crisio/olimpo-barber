@@ -6,7 +6,7 @@ import { API, DEMO, L, api, hora12, token } from '../api';
 import Agenda from '../Agenda';
 import CompartirQR, { urlPublica } from '../CompartirQR';
 import { CambiarPin } from './Barbero';
-import { Aviso, Carta, Cargando, Logo, Pagina, Poste, useDatos } from '../ui';
+import { Aviso, Carta, Cargando, Emblema, Logo, Pagina, Poste, useDatos } from '../ui';
 
 const PESTANAS = ['Panel', 'Agenda', 'Ajustes', 'Clientes', 'WhatsApp', 'Cartel'] as const;
 
@@ -373,7 +373,9 @@ function Cartel({ barberoId }: { barberoId?: number | null }) {
       <button className="btn btn-rojo no-imprimir" onClick={() => window.print()}>Imprimir cartel</button>
       <p className="no-imprimir mt-2 text-center text-sm text-tenue">El QR lleva a {url}</p>
       <div className="mx-auto mt-4 max-w-md rounded-3xl bg-white p-6 text-center text-black">
-        <div className="titulo text-6xl">Olimpo <span className="text-rojo">Barber</span></div>
+        <Emblema className="mx-auto w-56" />
+        <div className="marca text-6xl">OLIMPO</div>
+        <div className="marca text-lg tracking-[.3em]">— BARBER CLUB —</div>
         <Poste className="mx-auto mt-3 !h-3 w-3/4" />
         <div className="titulo mt-5 text-5xl">Agenda tu cita</div>
         <div className="mt-1 text-xl">Escanea y elige tu hora</div>

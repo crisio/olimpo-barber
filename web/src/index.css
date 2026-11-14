@@ -11,10 +11,12 @@
   --color-verde: #1fa971;
   --font-titulo: "Barlow Condensed", "Arial Narrow", sans-serif;
   --font-sans: "Barlow", system-ui, sans-serif;
+  --font-marca: "Playfair Display", Didot, "Bodoni MT", Georgia, serif;
 }
 
 html, body { background: var(--color-fondo); color: var(--color-crema); font-family: var(--font-sans); -webkit-tap-highlight-color: transparent; }
 body { min-height: 100dvh; }
+.marca { font-family: var(--font-marca); font-weight: 500; letter-spacing: .04em; }
 .titulo { font-family: var(--font-titulo); font-weight: 800; text-transform: uppercase; letter-spacing: .02em; line-height: .95; }
 /* Franjas de poste de barbero */
 .poste {
