@@ -17,10 +17,12 @@ Decide dos direcciones y anótalas. En esta guía se usan estos ejemplos; cámbi
 
 | Qué | Ejemplo |
 |---|---|
-| Web (lo que abre el cliente) | `turnoya.pensolabs.com` |
+| Web (lo que abre el cliente) | `olimpobarberclub.pensolabs.com` |
 | API | `api-turnoya.pensolabs.com` |
 
 Ya está hecho y **no hay que repetirlo**: la base de datos D1 llamada `turnoya` existe, con sus tablas y los datos de Olimpo Barber.
+
+Lo que de verdad falta hoy son los pasos **1 a 4** (token de Cloudflare en GitHub), el **7** (clave de Resend), el **8** (desplegar) y el **9** (secretos del Worker).
 
 ---
 
@@ -70,11 +72,13 @@ Ya está hecho y **no hay que repetirlo**: la base de datos D1 llamada `turnoya`
    | Nombre | Valor |
    |---|---|
    | `API_URL` | `https://api-turnoya.pensolabs.com` |
-   | `DOMINIO_WEB` | `turnoya.pensolabs.com` |
+   | `DOMINIO_WEB` | `olimpobarberclub.pensolabs.com` |
 
    Sin `https://` en `DOMINIO_WEB`. Con `https://` en `API_URL`.
 
 ## Paso 5. Crear el registro DNS de la web
+
+La web ya abre en `olimpobarberclub.pensolabs.com`, así que este registro ya existe. Solo revisa que esté como se indica; si es así, sigue al paso 7.
 
 1. En Cloudflare abre el dominio `pensolabs.com` → **DNS** → **Records** → **Add record**.
 2. Llena así:
@@ -82,7 +86,7 @@ Ya está hecho y **no hay que repetirlo**: la base de datos D1 llamada `turnoya`
    | Campo | Valor |
    |---|---|
    | Type | `CNAME` |
-   | Name | `turnoya` |
+   | Name | `olimpobarberclub` |
    | Target | `crisio.github.io` |
    | Proxy status | **DNS only** (nube gris) |
 
@@ -90,20 +94,11 @@ Ya está hecho y **no hay que repetirlo**: la base de datos D1 llamada `turnoya`
 
 El registro de la API no se crea a mano: lo crea el despliegue.
 
-## Paso 6. Activar la dirección de la API en el código
+## Paso 6. Dirección de la API en el código (ya está hecho)
 
-El dominio, el remitente y la plantilla de Resend ya están escritos en `worker/wrangler.toml`. Solo falta activar la dirección de la API:
+No hay que tocar nada. El archivo `worker/wrangler.toml` ya tiene la dirección de la API (`api-turnoya.pensolabs.com`), la de la web (`olimpobarberclub.pensolabs.com`), el remitente y la plantilla de Resend.
 
-1. Abre `worker/wrangler.toml` en GitHub y pulsa el lápiz.
-2. Busca esta línea y quítale el `# ` del inicio:
-
-   ```toml
-   # routes = [{ pattern = "api-turnoya.pensolabs.com", custom_domain = true }]
-   ```
-
-3. Guarda el cambio en la rama `main`.
-
-Si al final se usa otra dirección para la web, hay que cambiar también `ORIGEN_WEB`, `RP_ID` y `WEB_URL` en ese archivo. `RP_ID` debe ser exactamente el dominio de la web, sin `https://`; si no coincide, Face ID no funciona.
+Solo si algún día cambia la dirección de la web hay que editar `ORIGEN_WEB`, `RP_ID` y `WEB_URL` en ese archivo. `RP_ID` debe ser exactamente el dominio de la web, sin `https://`; si no coincide, Face ID no funciona.
 
 ## Paso 7. Crear la clave de Resend
 
@@ -135,16 +130,18 @@ Si **API** falla en "Crear bucket R2", falta el paso 2.
 
 ## Paso 10. Activar el dominio en GitHub Pages
 
+El dominio ya está activo. Solo confirma que **Enforce HTTPS** esté marcado.
+
 1. Abre <https://github.com/crisio/olimpo-barber/settings/pages>.
-2. En **Custom domain** debe aparecer `turnoya.pensolabs.com`. Si está vacío, escríbelo y **Save**.
+2. En **Custom domain** debe aparecer `olimpobarberclub.pensolabs.com`. Si está vacío, escríbelo y **Save**.
 3. Cuando termine la verificación, marca **Enforce HTTPS**.
 
 ## Paso 11. Comprobar que funciona
 
 1. Abre `https://api-turnoya.pensolabs.com/api/barberia`. Debe mostrar texto con "Olimpo Barber".
-2. Abre `https://turnoya.pensolabs.com`. Ya no debe aparecer la franja azul de "Demostración".
+2. Abre `https://olimpobarberclub.pensolabs.com`. Ya no debe aparecer la franja azul de "Demostración".
 3. Reserva una cita de prueba.
-4. Abre `https://turnoya.pensolabs.com/dueno`, entra con el correo del dueño y el código que llega por correo.
+4. Abre `https://olimpobarberclub.pensolabs.com/dueno`, entra con el correo del dueño y el código que llega por correo.
 5. En **Ajustes** asigna un PIN a cada barbero.
 6. En el panel toca **Activar Face ID o huella**.
 
@@ -152,7 +149,7 @@ Si **API** falla en "Crear bucket R2", falta el paso 2.
 
 ## Opcional. Verificación anti-bots (Turnstile)
 
-1. En Cloudflare: **Turnstile** → **Add widget**. Dominio: `turnoya.pensolabs.com`. Modo **Managed**.
+1. En Cloudflare: **Turnstile** → **Add widget**. Dominio: `olimpobarberclub.pensolabs.com`. Modo **Managed**.
 2. Copia la **Site Key** a GitHub como variable `TURNSTILE_SITEKEY` (paso 4).
 3. Copia la **Secret Key** al Worker como secreto `TURNSTILE_SECRET` (paso 9).
 4. Vuelve a correr el despliegue (paso 8).

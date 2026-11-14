@@ -4,7 +4,9 @@ import QRCode from 'qrcode';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { API, DEMO, L, api, hora12, token } from '../api';
 import Agenda from '../Agenda';
-import { Aviso, Carta, Cargando, Logo, Pagina, Poste, useDatos } from '../ui';
+import CompartirQR, { urlPublica } from '../CompartirQR';
+import { CambiarPin } from './Barbero';
+import { Aviso, Carta, Cargando, Emblema, Logo, Pagina, Poste, useDatos } from '../ui';
 
 const PESTANAS = ['Panel', 'Agenda', 'Ajustes', 'Clientes', 'WhatsApp', 'Cartel'] as const;
 
@@ -15,6 +17,7 @@ export default function Dueno() {
   if (dentro && error?.estado === 401) { token.guardar(null); setDentro(false); }
   if (!dentro) return <Entrar onListo={() => setDentro(true)} />;
   if (!yo) return <Pagina><Logo /><Cargando /></Pagina>;
+  if (yo.cambiar_pin) return <CambiarPin seis={yo.rol === 'dueno'} onListo={recargar} />;
   if (yo.rol !== 'dueno') return <Pagina><Logo /><div className="mt-6"><Aviso>Esta sección es solo para el dueño.</Aviso></div><Link className="btn btn-crema mt-4" to="/barbero">Ir a mi agenda</Link></Pagina>;
   return (
     <Pagina ancho="max-w-2xl">
@@ -36,7 +39,7 @@ export default function Dueno() {
         {tab === 'Ajustes' && <Ajustes />}
         {tab === 'Clientes' && <Clientes />}
         {tab === 'WhatsApp' && <WhatsApp />}
-        {tab === 'Cartel' && <Cartel />}
+        {tab === 'Cartel' && <Cartel barberoId={yo.atiende ? yo.barbero_id : null} />}
       </div>
     </Pagina>
   );
@@ -87,7 +90,8 @@ function Entrar({ onListo }: { onListo: () => void }) {
           <button type="button" className="btn btn-linea mt-2" onClick={() => { setEnviado(false); setCodigo(''); }}>Usar otro correo</button>
         </form>
       )}
-      <p className="mt-6 text-center text-sm text-tenue"><Link className="underline" to="/barbero">Soy barbero</Link> · <Link className="underline" to="/">Inicio</Link></p>
+      <Link className="btn btn-linea mt-6" to="/barbero">Entrar con mi PIN de barbero</Link>
+      <p className="mt-4 text-center text-sm text-tenue"><Link className="underline" to="/">Inicio</Link></p>
     </Pagina>
   );
 }
@@ -256,12 +260,14 @@ function FilaBarbero({ inicial, onGuardar, onFoto }: { inicial: any; onGuardar: 
     if (!r.ok) alert((await r.json().catch(() => ({}))).error ?? 'No se pudo subir la foto.'); else onFoto();
   }
   return (
-    <form className="rounded-xl border border-borde p-3" onSubmit={(e) => { e.preventDefault(); onGuardar({ ...x, activo: !!x.activo, pin: x.pin || undefined }); if (x.nuevo) setX({ ...inicial, pin: '' }); else setX({ ...x, pin: '' }); }}>
+    <form className="rounded-xl border border-borde p-3" onSubmit={(e) => { e.preventDefault(); onGuardar({ ...x, activo: !!x.activo, es_admin: !!x.es_admin, atiende: x.atiende !== 0, pin: x.pin || undefined }); if (x.nuevo) setX({ ...inicial, pin: '' }); else setX({ ...x, pin: '' }); }}>
       <div className="grid grid-cols-2 gap-2">
         <input aria-label="Nombre del barbero" className="campo" placeholder={x.nuevo ? 'Nuevo barbero' : 'Nombre'} value={x.nombre} onChange={(e) => setX({ ...x, nombre: e.target.value })} />
         <input aria-label="Apodo" className="campo" placeholder="Apodo" value={x.apodo ?? ''} onChange={(e) => setX({ ...x, apodo: e.target.value })} />
-        <input aria-label="PIN" className="campo" inputMode="numeric" maxLength={4} placeholder={x.con_pin ? 'Cambiar PIN' : 'PIN de 4 números'} value={x.pin} onChange={(e) => setX({ ...x, pin: e.target.value.replace(/\D/g, '') })} />
+        <input aria-label="PIN" className="campo" inputMode="numeric" maxLength={6} placeholder={x.con_pin ? 'Cambiar PIN' : 'PIN de 4 o 6 números'} value={x.pin} onChange={(e) => setX({ ...x, pin: e.target.value.replace(/\D/g, '') })} />
         {!x.nuevo && <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.activo} onChange={(e) => setX({ ...x, activo: e.target.checked ? 1 : 0 })} />Activo</label>}
+        <label className="col-span-2 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={x.atiende !== 0} onChange={(e) => setX({ ...x, atiende: e.target.checked ? 1 : 0 })} />Atiende clientes (aparece para agendar)</label>
+        <label className="col-span-2 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.es_admin} onChange={(e) => setX({ ...x, es_admin: e.target.checked ? 1 : 0 })} />Administrador: entra al panel con su PIN (6 números)</label>
       </div>
       <div className="mt-2 flex items-center gap-3">
         <button className="btn btn-linea !min-h-11 !w-auto !text-lg" disabled={!x.nombre.trim()}>{x.nuevo ? 'Agregar' : 'Guardar'}</button>
@@ -358,8 +364,8 @@ function WhatsApp() {
   );
 }
 
-function Cartel() {
-  const url = `${location.origin}${import.meta.env.BASE_URL}`;
+function Cartel({ barberoId }: { barberoId?: number | null }) {
+  const url = urlPublica();
   const [qr, setQr] = useState('');
   useEffect(() => { QRCode.toDataURL(url, { width: 900, margin: 1, errorCorrectionLevel: 'M' }).then(setQr); }, [url]);
   return (
@@ -367,7 +373,9 @@ function Cartel() {
       <button className="btn btn-rojo no-imprimir" onClick={() => window.print()}>Imprimir cartel</button>
       <p className="no-imprimir mt-2 text-center text-sm text-tenue">El QR lleva a {url}</p>
       <div className="mx-auto mt-4 max-w-md rounded-3xl bg-white p-6 text-center text-black">
-        <div className="titulo text-6xl">Olimpo <span className="text-rojo">Barber</span></div>
+        <Emblema className="mx-auto w-56" />
+        <div className="marca text-6xl">OLIMPO</div>
+        <div className="marca text-lg tracking-[.3em]">— BARBER CLUB —</div>
         <Poste className="mx-auto mt-3 !h-3 w-3/4" />
         <div className="titulo mt-5 text-5xl">Agenda tu cita</div>
         <div className="mt-1 text-xl">Escanea y elige tu hora</div>
@@ -375,6 +383,7 @@ function Cartel() {
         <div className="mt-3 text-lg font-semibold">Sin descargar nada · sin crear cuenta</div>
         <div className="mt-1 text-sm">Llega puntual: 10 minutos de tolerancia</div>
       </div>
+      <div className="no-imprimir mt-10 border-t border-borde pt-6"><CompartirQR barberoId={barberoId} /></div>
     </div>
   );
 }

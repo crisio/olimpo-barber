@@ -16,7 +16,7 @@ Citas en línea para Olimpo Barber. El cliente escanea un QR, elige día y hora,
 | `/` | Cliente | Inicio: horario, próxima hora libre, servicios y precios |
 | `/agendar` | Cliente | Reserva en 4 pasos |
 | `/c/CODIGO` | Cliente | Su cita: cuenta regresiva, ticket, cancelar, recuperar, avisos por WhatsApp |
-| `/barbero` | Barbero | Entra con PIN. Botones: Llegó, Terminé, No llegó, Pausa. Agrega clientes a mano |
+| `/barbero` | Barbero | Entra con PIN. Botones: Llegó, Terminé, No llegó, Pausa. Agrega clientes a mano. Pestaña **Mi QR** con la imagen para estados de WhatsApp. Si es administrador (PIN de 6 números) también entra al panel |
 | `/dueno` | Dueño | Entra con código por correo o Face ID. Panel, agenda, ajustes, clientes, WhatsApp, cartel QR |
 | `/pantalla` | TV | Agenda del día en vivo, solo nombre e inicial |
 | `/privacidad` | Todos | Aviso de privacidad |
@@ -61,7 +61,7 @@ npm run dev            # http://localhost:5173
 
 Accesos de ejemplo (solo en local):
 
-- Barbero: "Barbero Olimpo" con PIN `1111`, "Kevin Mejía" con PIN `2222`.
+- Barbero: "Edison" con PIN `1111`, "Kevin Mejía" con PIN `2222`.
 - Dueño: correo `dueno@ejemplo.com`. En local no se envía correo; el código aparece ya escrito en la pantalla.
 - Citas de ejemplo: `/c/DEMD5` (próxima), `/c/DEMC4` (en la silla), `/c/DEMF7` (perdida, para probar el recargo).
 
@@ -86,8 +86,8 @@ Variables:
 
 | Nombre | Ejemplo | Qué es |
 |---|---|---|
-| `API_URL` | `https://api.turnoya.tudominio.com` | Dirección pública del Worker |
-| `DOMINIO_WEB` | `turnoya.tudominio.com` | Dominio de la web. Vacío = se publica en `crisio.github.io/olimpo-barber` |
+| `API_URL` | `https://api-turnoya.pensolabs.com` | Dirección pública del Worker |
+| `DOMINIO_WEB` | `olimpobarberclub.pensolabs.com` | Dominio de la web. Vacío = se publica en `crisio.github.io/olimpo-barber` |
 | `TURNSTILE_SITEKEY` | — | Opcional. Clave pública de Turnstile |
 
 Además, en **Settings → Pages**, elige **Source: GitHub Actions**.
@@ -141,6 +141,13 @@ Límites que conviene conocer:
 - Los precios de Meta cambian; revísalos antes de activar plantillas.
 
 Para conectar: crea una app en Meta for Developers con el producto WhatsApp, registra el número, apunta el webhook a `https://TU-API/api/whatsapp/webhook` con tu `WA_VERIFY_TOKEN`, suscribe el campo `messages` y carga los secretos de la tabla anterior. Un número que ya se usa en la app normal de WhatsApp Business no puede usarse a la vez en la API sin el proceso de coexistencia de Meta; lo más simple es un número aparte.
+
+## Acceso del personal
+
+- **Barbero**: entra en `/barbero` con su PIN (4 números, o 6 si es administrador).
+- **Administrador**: un barbero marcado como administrador ve además el botón **Panel**. También puede existir un administrador que no atiende clientes: entra con PIN pero no aparece para agendar.
+- **PIN temporal**: quien entra con un PIN marcado como temporal debe crear uno nuevo antes de poder hacer nada más.
+- **Dueño por correo**: sigue disponible con código de Resend y Face ID.
 
 ## Datos y privacidad
 
