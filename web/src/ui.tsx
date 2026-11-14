@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import { api, diaCorto, diaTexto, hora12, sumarDias } from './api';
+import { DEMO, api, diaCorto, diaTexto, hora12, sumarDias } from './api';
 
 export function Logo({ grande = false }: { grande?: boolean }) {
   return (
@@ -23,7 +23,12 @@ export function Logo({ grande = false }: { grande?: boolean }) {
 export const Poste = ({ className = '' }: { className?: string }) => <div className={`poste h-2 rounded-full ${className}`} aria-hidden="true" />;
 
 export function Pagina({ children, ancho = 'max-w-md' }: { children: ReactNode; ancho?: string }) {
-  return <main className={`mx-auto ${ancho} px-4 pb-16 pt-5`}>{children}</main>;
+  return (
+    <>
+      {DEMO && <div className="no-imprimir bg-azul px-4 py-2 text-center text-sm font-semibold text-white">Demostración: datos de ejemplo, nada se guarda ni se envía.</div>}
+      <main className={`mx-auto ${ancho} px-4 pb-16 pt-5`}>{children}</main>
+    </>
+  );
 }
 export const Carta = ({ children, className = '' }: { children: ReactNode; className?: string }) =>
   <section className={`rounded-2xl border border-borde bg-carta p-4 ${className}`}>{children}</section>;

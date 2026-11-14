@@ -92,6 +92,7 @@ export default function Agenda({ rol }: { rol: 'barbero' | 'dueno' }) {
             : <button className="btn btn-crema !min-h-24 flex-col !gap-0 !text-3xl" disabled={ocupado || !proxLibre} onClick={() => bloquear(proxLibre.inicio)}>Pausa{proxLibre && <span className="whitespace-nowrap text-base">({hora12(proxLibre.hora)})</span>}</button>}
         </div>
         {siguiente && !tolVencida && <p className="mt-2 text-center text-sm text-tenue">“No llegó” se activa {tol} min después de la hora de la cita.</p>}
+        <p className="mt-1 text-center text-sm text-tenue">¿Llegó otro cliente antes? Toca “Atender ahora” en su cita de la lista. Confirma con su código.</p>
       </>)}
 
       <h2 className="titulo mt-6 text-3xl">Agenda del día</h2>
@@ -108,9 +109,10 @@ export default function Agenda({ rol }: { rol: 'barbero' | 'dueno' }) {
                 <div className="min-w-0 flex-1">
                   {cs.map((c: any) => (
                     <div key={c.id} className={c.estado === 'no_llego' ? 'text-tenue' : ''}>
-                      <div className="font-semibold">{c.nombre} <span className="text-sm font-normal text-tenue">· {ETIQUETA[c.estado]}{c.origen === 'manual' ? ' · a mano' : ''}</span></div>
+                      <div className="font-semibold">{c.nombre} <span className="text-sm font-normal text-tenue">· {c.codigo} · {ETIQUETA[c.estado]}{c.origen === 'manual' ? ' · a mano' : ''}</span></div>
                       <div className="text-sm text-tenue">{c.servicios.map((s: any) => s.nombre).join(' + ')} · {L(c.total_l)}{c.telefono ? ` · +${c.telefono}` : ''}</div>
                       <div className="mt-1 flex flex-wrap gap-3 text-sm">
+                        {c.estado === 'agendada' && esHoy && !enCurso && <button className="font-semibold underline" disabled={ocupado} onClick={() => accion(c.id, 'llego')}>Atender ahora</button>}
                         {c.estado === 'agendada' && <button className="underline" disabled={ocupado} onClick={() => accion(c.id, 'cancelar')}>Cancelar</button>}
                         {c.estado === 'en_atencion' || (c.estado === 'no_llego' && !viva) ? <button className="underline" disabled={ocupado} onClick={() => accion(c.id, 'deshacer')}>Deshacer</button> : null}
                         {c.telefono && c.estado === 'agendada' && <a className="underline" href={waTexto(c)} target="_blank" rel="noreferrer">WhatsApp</a>}

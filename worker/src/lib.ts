@@ -13,6 +13,7 @@ export type Env = {
   WA_VERIFY_TOKEN?: string;
   WA_APP_SECRET?: string;
   WA_PLANTILLA_RECORDATORIO?: string;
+  WEB_URL?: string;
 };
 
 // Honduras: UTC-6 todo el año
@@ -81,7 +82,7 @@ export function normalizarTel(t?: string | null) {
 export const ESTADOS_VIVOS = `('agendada','en_atencion','terminada')`;
 
 /** Horas del día con los barberos que las tienen libres. */
-export async function disponibilidad(env: Env, fecha: string) {
+export async function disponibilidad(env: Env, fecha: string, opts: { sinAnticipacion?: boolean } = {}) {
   const b = await env.DB.prepare('SELECT * FROM barberia WHERE id = 1').first<any>();
   const hoy = ahoraLocal();
   if (!b || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return [];
@@ -95,8 +96,13 @@ export async function disponibilidad(env: Env, fecha: string) {
   const tomado = new Set(ocupadas.map((o) => `${o.barbero_id}|${o.inicio}`));
   const horas: { inicio: string; hora: string; barberos: number[] }[] = [];
   const cierre = `${fecha}T${rango[1]}`;
+  const alm = b.almuerzo ? (JSON.parse(b.almuerzo) as [string, string]) : null;
+  // El cliente reserva con anticipación mínima; el personal puede agregar hasta el último minuto
+  const desde = sumarMin(hoy, opts.sinAnticipacion ? 0 : b.anticipacion_min);
   for (let t = `${fecha}T${rango[0]}`; sumarMin(t, b.duracion_cita_min) <= cierre; t = sumarMin(t, b.duracion_cita_min)) {
-    const libres = t > hoy ? barberos.filter((x) => !tomado.has(`${x.id}|${t}`)).map((x) => x.id) : [];
+    const fin = sumarMin(t, b.duracion_cita_min);
+    if (alm && t < `${fecha}T${alm[1]}` && fin > `${fecha}T${alm[0]}`) continue; // hora de almuerzo
+    const libres = t > hoy && t >= desde ? barberos.filter((x) => !tomado.has(`${x.id}|${t}`)).map((x) => x.id) : [];
     horas.push({ inicio: t, hora: t.slice(11), barberos: libres });
   }
   return horas;

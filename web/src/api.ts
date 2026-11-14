@@ -1,4 +1,8 @@
+import { demoApi } from './demo';
+
 export const API = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+/** Sin API configurada, la web funciona como demostración con datos de ejemplo en el navegador. */
+export const DEMO = !API;
 
 export class ErrorApi extends Error {
   constructor(mensaje: string, public estado: number, public datos: any) { super(mensaje); }
@@ -9,6 +13,11 @@ export const token = {
 };
 export async function api<T = any>(ruta: string, cuerpo?: unknown, metodo?: string): Promise<T> {
   const t = token.leer();
+  if (DEMO) {
+    const d = demoApi(ruta, cuerpo, metodo ?? (cuerpo === undefined ? 'GET' : 'POST'), t);
+    if (d.estado >= 400) throw new ErrorApi(d.datos.error, d.estado, d.datos);
+    return structuredClone(d.datos) as T;
+  }
   let r: Response;
   try {
     r = await fetch(`${API}/api${ruta}`, {

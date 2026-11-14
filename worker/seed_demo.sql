@@ -2,7 +2,7 @@
 UPDATE barberos SET pin_hash = 'a1b2c3d4e5f60718:b1b825e42796cfe77cdcecbde92ae2514d563effd7e44abe620682f3495af200' WHERE id = 1;
 INSERT INTO barberos (nombre, apodo, orden, pin_hash) VALUES
  ('Kevin Mejía', 'Kevin', 2, '0f1e2d3c4b5a6978:d68091e3d7d0fe79016c171676edb485f9c6e31de87bd5392d0acbbf6f8520ca');
-UPDATE barberia SET whatsapp_numero = '50499990000', horario =
+UPDATE barberia SET whatsapp_numero = '50499990000', anticipacion_min = 0, almuerzo = NULL, horario =
  '{"0":["00:00","23:00"],"1":["00:00","23:00"],"2":["00:00","23:00"],"3":["00:00","23:00"],"4":["00:00","23:00"],"5":["00:00","23:00"],"6":["00:00","23:00"]}';
 INSERT INTO clientes (telefono, nombre, consentimiento, wa_verificado, ultimo_entrante_en, visitas, creado_en) VALUES
  ('50433112233', 'Óscar López', 1, 1, strftime('%Y-%m-%dT%H:%M:%SZ','now'), 3, strftime('%Y-%m-%dT%H:%M:%SZ','now')),

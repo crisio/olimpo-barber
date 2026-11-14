@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
-import { API, L, api, hora12, token } from '../api';
+import { API, DEMO, L, api, hora12, token } from '../api';
 import Agenda from '../Agenda';
 import { Aviso, Carta, Cargando, Logo, Pagina, Poste, useDatos } from '../ui';
 
@@ -203,6 +203,14 @@ function Ajustes() {
             {num('tolerancia_min', 'Tolerancia de espera', 'min')}
             {num('recargo_l', 'Recargo por recuperar', 'L')}
             {num('dias_anticipacion', 'Se agenda hasta con', 'días')}
+            {num('anticipacion_min', 'Reservar al menos con', 'min antes')}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!b.almuerzo} onChange={(e) => setB({ ...b, almuerzo: e.target.checked ? ['12:00', '13:00'] : null })} />Hora de almuerzo (no se reserva)</label>
+            {b.almuerzo && (<>
+              <input aria-label="Almuerzo desde" type="time" className="campo !w-auto !px-2 !py-2" value={b.almuerzo[0]} onChange={(e) => setB({ ...b, almuerzo: [e.target.value, b.almuerzo[1]] })} />
+              <input aria-label="Almuerzo hasta" type="time" className="campo !w-auto !px-2 !py-2" value={b.almuerzo[1]} onChange={(e) => setB({ ...b, almuerzo: [b.almuerzo[0], e.target.value] })} />
+            </>)}
           </div>
           <fieldset>
             <legend className="text-sm text-tenue">Horario</legend>
@@ -211,7 +219,7 @@ function Ajustes() {
                 const r = b.horario[i];
                 return (
                   <div key={d} className="flex items-center gap-2">
-                    <label className="flex w-32 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!r} onChange={(e) => setB({ ...b, horario: { ...b.horario, [i]: e.target.checked ? ['09:00', '19:00'] : null } })} />{d}</label>
+                    <label className="flex w-32 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!r} onChange={(e) => setB({ ...b, horario: { ...b.horario, [i]: e.target.checked ? ['10:00', '21:00'] : null } })} />{d}</label>
                     {r ? (<>
                       <input aria-label={`${d} abre`} type="time" className="campo !px-2 !py-2" value={r[0]} onChange={(e) => setB({ ...b, horario: { ...b.horario, [i]: [e.target.value, r[1]] } })} />
                       <input aria-label={`${d} cierra`} type="time" className="campo !px-2 !py-2" value={r[1]} onChange={(e) => setB({ ...b, horario: { ...b.horario, [i]: [r[0], e.target.value] } })} />
@@ -243,6 +251,7 @@ function Ajustes() {
 function FilaBarbero({ inicial, onGuardar, onFoto }: { inicial: any; onGuardar: (d: any) => void; onFoto: () => void }) {
   const [x, setX] = useState({ ...inicial, pin: '' });
   async function subir(f: File) {
+    if (DEMO) { alert('Las fotos se activan cuando la app esté conectada a Cloudflare.'); return; }
     const r = await fetch(`${API}/api/archivos?barbero=${x.id}`, { method: 'POST', headers: { 'content-type': f.type, authorization: `Bearer ${token.leer()}` }, body: f });
     if (!r.ok) alert((await r.json().catch(() => ({}))).error ?? 'No se pudo subir la foto.'); else onFoto();
   }
@@ -284,6 +293,7 @@ function FilaServicio({ inicial, onGuardar }: { inicial: any; onGuardar: (d: any
 function Clientes() {
   const { datos } = useDatos<any>('/clientes');
   async function bajar() {
+    if (DEMO) { alert('La descarga se activa cuando la app esté conectada a Cloudflare.'); return; }
     const r = await fetch(`${API}/api/clientes?formato=csv`, { headers: { authorization: `Bearer ${token.leer()}` } });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(await r.blob()); a.download = 'clientes-olimpo.csv'; a.click();

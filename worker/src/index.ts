@@ -8,7 +8,7 @@ import {
   Env, utc, ahoraLocal, sumarMin, sumarDias, minutosEntre, sha256, aleatorioHex, hashPin, pinValido,
   codigoCorto, nombrePublico, normalizarTel, disponibilidad, ESTADOS_VIVOS,
 } from './lib';
-import { enviarWA, procesarEntrante, firmaValida, manejarWebhook, tareasProgramadas, waConfigurado } from './whatsapp';
+import { enviarWA, ofrecerHora, procesarEntrante, firmaValida, manejarWebhook, tareasProgramadas, waConfigurado } from './whatsapp';
 
 type Sesion = { rol: 'dueno' | 'barbero'; usuario_id: number | null; barbero_id: number | null };
 type C = Context<{ Bindings: Env; Variables: { sesion: Sesion } }>;
@@ -75,7 +75,7 @@ async function datosBarberia(env: Env) {
     env.DB.prepare('SELECT id, nombre, apodo, foto_key, orden, activo, (pin_hash IS NOT NULL) AS con_pin FROM barberos ORDER BY orden, id').all<any>(),
     env.DB.prepare('SELECT * FROM servicios ORDER BY orden, id').all<any>(),
   ]);
-  return { barberia: { ...b, horario: JSON.parse(b.horario) }, barberos: barberos.results, servicios: servicios.results };
+  return { barberia: { ...b, horario: JSON.parse(b.horario), almuerzo: b.almuerzo ? JSON.parse(b.almuerzo) : null }, barberos: barberos.results, servicios: servicios.results };
 }
 
 app.get('/api/barberia', async (c) => {
@@ -138,7 +138,7 @@ async function crearCita(env: Env, d: {
   nombre: string; telefono: string | null; consentimiento: boolean; barbero_id: number | null; servicio_ids: number[];
   inicio: string; dispositivo: string | null; origen: 'web' | 'manual'; recargo_l?: number; recuperada_de?: number;
 }): Promise<{ codigo: string } | { error: string }> {
-  const hora = (await disponibilidad(env, d.inicio.slice(0, 10))).find((h) => h.inicio === d.inicio);
+  const hora = (await disponibilidad(env, d.inicio.slice(0, 10), { sinAnticipacion: d.origen === 'manual' })).find((h) => h.inicio === d.inicio);
   if (!hora) return { error: 'Esa hora no está disponible.' };
   let barbero = d.barbero_id;
   if (barbero) {
@@ -180,6 +180,7 @@ async function crearCita(env: Env, d: {
   return { error: 'No se pudo crear la cita.' };
 }
 
+const hhmm = (v: unknown) => typeof v === 'string' && /^\d{2}:\d{2}$/.test(v);
 const limpiarNombre = (n: unknown) => String(n ?? '').replace(/[<>\n\r]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40);
 
 app.post('/api/citas', async (c) => {
@@ -215,7 +216,8 @@ const citaPublica = (env: Env, codigo: string) => env.DB.prepare(
 app.get('/api/citas/:codigo', async (c) => {
   const cita = await citaPublica(c.env, c.req.param('codigo'));
   if (!cita) return err(c, 'No encontramos esa cita.', 404);
-  const b = await c.env.DB.prepare('SELECT nombre, direccion, whatsapp_numero, tolerancia_min, recargo_l FROM barberia WHERE id = 1').first<any>();
+  const b = await c.env.DB.prepare('SELECT nombre, direccion, whatsapp_numero, tolerancia_min, recargo_l, dias_anticipacion, horario FROM barberia WHERE id = 1').first<any>();
+  b.horario = JSON.parse(b.horario);
   const { _id, ...resto } = cita;
   return c.json({ cita: { ...resto, servicios: JSON.parse(cita.servicios) }, barberia: b, ahora: ahoraLocal() });
 });
@@ -224,6 +226,25 @@ app.post('/api/citas/:codigo/cancelar', async (c) => {
   const r = await c.env.DB.prepare(`UPDATE citas SET estado = 'cancelada' WHERE codigo = ? AND estado = 'agendada'`)
     .bind(c.req.param('codigo').toUpperCase()).run();
   if (!r.meta.changes) return err(c, 'Esta cita ya no se puede cancelar.', 409);
+  const libre = await c.env.DB.prepare('SELECT inicio FROM citas WHERE codigo = ?').bind(c.req.param('codigo').toUpperCase()).first<any>();
+  c.executionCtx.waitUntil(ofrecerHora(c.env, libre.inicio, ahoraLocal()).catch((e) => console.error('ofrecer', e)));
+  return c.json({ ok: true });
+});
+
+// Cambiar la hora de una cita (por ejemplo, adelantarla a una hora que se liberó). Sin recargo.
+app.post('/api/citas/:codigo/mover', async (c) => {
+  const d = await cuerpo(c);
+  const inicio = String(d.inicio ?? '');
+  const cita = await c.env.DB.prepare('SELECT * FROM citas WHERE codigo = ?').bind(c.req.param('codigo').toUpperCase()).first<any>();
+  const ahora = ahoraLocal();
+  if (!cita || cita.estado !== 'agendada' || cita.inicio <= ahora) return err(c, 'Esta cita ya no se puede cambiar.', 409);
+  const hora = (await disponibilidad(c.env, inicio.slice(0, 10))).find((h) => h.inicio === inicio);
+  if (!hora?.barberos.length) return err(c, 'Esa hora ya se ocupó. Elige otra.', 409);
+  const barbero = hora.barberos.includes(cita.barbero_id) ? cita.barbero_id : hora.barberos[0];
+  try {
+    await c.env.DB.prepare('UPDATE citas SET inicio = ?, barbero_id = ?, recordatorio_enviado = 0 WHERE id = ?').bind(inicio, barbero, cita.id).run();
+  } catch { return err(c, 'Esa hora se acaba de ocupar. Elige otra.', 409); }
+  c.executionCtx.waitUntil(ofrecerHora(c.env, cita.inicio, ahora).catch((e) => console.error('ofrecer', e)));
   return c.json({ ok: true });
 });
 
@@ -401,7 +422,7 @@ app.get('/api/agenda', personal, async (c) => {
        WHERE c.inicio LIKE ?1 AND (?2 IS NULL OR c.barbero_id = ?2) AND c.estado != 'cancelada' ORDER BY c.inicio, c.id`)
       .bind(fecha + '%', barbero).all<any>(),
     c.env.DB.prepare('SELECT barbero_id, inicio FROM bloqueos WHERE inicio LIKE ?1 AND (?2 IS NULL OR barbero_id = ?2)').bind(fecha + '%', barbero).all<any>(),
-    disponibilidad(c.env, fecha),
+    disponibilidad(c.env, fecha, { sinAnticipacion: true }),
     datosBarberia(c.env),
   ]);
   return c.json({
@@ -432,6 +453,7 @@ app.post('/api/citas/:id/accion', personal, async (c) => {
     if (cita.cliente_id) await db.prepare('UPDATE clientes SET no_llegadas = no_llegadas + 1 WHERE id = ?').bind(cita.cliente_id).run();
   } else if (accion === 'cancelar' && cita.estado === 'agendada') {
     await db.prepare(`UPDATE citas SET estado = 'cancelada' WHERE id = ?`).bind(cita.id).run();
+    c.executionCtx.waitUntil(ofrecerHora(c.env, cita.inicio, ahora).catch((e) => console.error('ofrecer', e)));
   } else if (accion === 'deshacer' && ['en_atencion', 'no_llego'].includes(cita.estado) && !cita.recuperada) {
     await db.prepare(`UPDATE citas SET estado = 'agendada', llego_en = NULL WHERE id = ?`).bind(cita.id).run()
       .catch(() => { throw new Error('La hora ya fue ocupada por otra cita'); });
@@ -486,10 +508,12 @@ app.put('/api/barberia', dueno, async (c) => {
   const entero = (v: unknown, min: number, max: number, def: number) => Math.min(max, Math.max(min, Math.round(Number(v)) || def));
   await c.env.DB.prepare(
     `UPDATE barberia SET nombre = ?, direccion = ?, whatsapp_numero = ?, horario = ?, duracion_cita_min = ?,
-       tolerancia_min = ?, recargo_l = ?, dias_anticipacion = ?, agenda_abierta = ? WHERE id = 1`)
+       tolerancia_min = ?, recargo_l = ?, dias_anticipacion = ?, agenda_abierta = ?, anticipacion_min = ?, almuerzo = ? WHERE id = 1`)
     .bind(limpiarNombre(d.nombre) || 'Olimpo Barber', String(d.direccion ?? '').slice(0, 160), normalizarTel(d.whatsapp_numero),
       JSON.stringify(horario), entero(d.duracion_cita_min, 15, 180, 60), entero(d.tolerancia_min, 0, 60, 10),
-      Math.max(0, Math.round(Number(d.recargo_l)) || 0), entero(d.dias_anticipacion, 1, 60, 14), d.agenda_abierta ? 1 : 0).run();
+      Math.max(0, Math.round(Number(d.recargo_l)) || 0), entero(d.dias_anticipacion, 1, 60, 14), d.agenda_abierta ? 1 : 0,
+      Math.min(1440, Math.max(0, Math.round(Number(d.anticipacion_min)) || 0)),
+      Array.isArray(d.almuerzo) && hhmm(d.almuerzo[0]) && hhmm(d.almuerzo[1]) && d.almuerzo[0] < d.almuerzo[1] ? JSON.stringify([d.almuerzo[0], d.almuerzo[1]]) : null).run();
   return c.json({ ok: true });
 });
 

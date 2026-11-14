@@ -80,6 +80,21 @@ export async function procesarEntrante(env: Env, telefonoCrudo: string, texto: s
   return { vinculada: true, codigo: cita.codigo };
 }
 
+/** Se liberó una hora: se la ofrece a quienes tienen cita más tarde ese mismo día. */
+export async function ofrecerHora(env: Env, inicio: string, ahora: string) {
+  if (inicio <= ahora) return;
+  const citas = (await env.DB.prepare(
+    `SELECT c.id, c.nombre, c.telefono, c.codigo FROM citas c LEFT JOIN clientes k ON k.id = c.cliente_id
+     WHERE c.estado = 'agendada' AND c.telefono IS NOT NULL AND COALESCE(k.consentimiento, 1) = 1
+       AND c.inicio > ?1 AND c.inicio LIKE ?2 ORDER BY c.inicio LIMIT 5`).bind(inicio, inicio.slice(0, 10) + '%').all<any>()).results;
+  const enlace = (codigo: string) => (env.WEB_URL ? ` ${env.WEB_URL.replace(/\/$/, '')}/c/${codigo}` : '');
+  for (const c of citas) {
+    await enviarWA(env, c.telefono,
+      `${c.nombre.split(' ')[0]}, se liberó una hora en Olimpo Barber: ${fechaTexto(inicio)}. Si quieres adelantar tu cita, ábrela y toca "Cambiar hora".${enlace(c.codigo)} La toma el primero que la elija.`,
+      { cita_id: c.id, tipo: 'hora_libre' });
+  }
+}
+
 /** Verifica la firma X-Hub-Signature-256 de Meta. */
 export async function firmaValida(env: Env, cuerpo: string, firma: string | undefined) {
   if (!env.WA_APP_SECRET) return env.ENTORNO === 'dev';

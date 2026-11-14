@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import QRCode from 'qrcode';
 import { L, api, cuandoTexto, duracion, hora12, memoria, minutosEntre } from '../api';
 import { Aviso, Cargando, Confirmar, Logo, Pagina, Poste, SelectorHora, useDatos } from '../ui';
 
@@ -18,15 +19,19 @@ export default function Cita() {
   const [params] = useSearchParams();
   const nav = useNavigate();
   const { datos, error, recargar } = useDatos<any>(`/citas/${codigo}`, 20000);
-  const { datos: cfg } = useDatos<any>('/barberia');
   const [dialogo, setDialogo] = useState(false);
   const [recuperando, setRecuperando] = useState(false);
   const [nueva, setNueva] = useState<string | null>(null);
   const [fallo, setFallo] = useState('');
+  const [moviendo, setMoviendo] = useState(false);
+  const [qr, setQr] = useState('');
   const fase = useRef('');
+  useEffect(() => { QRCode.toDataURL(location.href.split('?')[0], { width: 320, margin: 1 }).then(setQr).catch(() => {}); }, [codigo]);
 
   const c = datos?.cita, ahora: string = datos?.ahora ?? '';
   const faltan = c ? minutosEntre(ahora, c.inicio) : 0;
+  const { datos: disp } = useDatos<any>(c?.estado === 'agendada' && faltan > 0 ? `/disponibilidad?fecha=${c.inicio.slice(0, 10)}` : null, 30000);
+  const antes = c && disp?.horas.find((h: any) => h.barberos.length && h.inicio < c.inicio);
   const faseActual = !c ? '' : c.estado !== 'agendada' ? c.estado : faltan <= 0 ? 'ya' : faltan <= 60 ? 'cerca' : 'lejos';
   useEffect(() => {
     if (faseActual && fase.current && fase.current !== faseActual) avisar();
@@ -46,6 +51,11 @@ export default function Cita() {
   async function cancelar() {
     setDialogo(false);
     try { await api(`/citas/${codigo}/cancelar`, {}); recargar(); } catch (e: any) { setFallo(e.message); }
+  }
+  async function mover(inicio: string | null) {
+    if (!inicio) return;
+    try { await api(`/citas/${codigo}/mover`, { inicio }); setMoviendo(false); setNueva(null); setFallo(''); recargar(); }
+    catch (e: any) { setFallo(e.message); setNueva(null); }
   }
   async function recuperar() {
     try {
@@ -78,11 +88,13 @@ export default function Cita() {
           <div className="titulo text-5xl">¡Ya casi, ve saliendo!</div>
           <div className="titulo mt-2 text-7xl">{hora12(c.inicio.slice(11))}</div>
           <div className="mt-2 text-lg">Faltan {duracion(faltan)} · {c.barbero} te espera</div>
+          <div className="mt-2 text-sm opacity-90">Llega puntual: después de {b.tolerancia_min} min pierdes la hora y recuperarla cuesta {L(b.recargo_l)} más.</div>
         </>)}
         {c.estado === 'agendada' && faltan <= 0 && (<>
           <div className="titulo text-5xl">Tu hora ya empezó</div>
           <div className="titulo mt-2 text-7xl">{tolerancia > 0 ? `${tolerancia} min` : 'Tiempo agotado'}</div>
-          <div className="mt-2 text-lg">{tolerancia > 0 ? `de tolerancia. Avísale a ${c.barbero} cuando llegues.` : `Pasaron los ${b.tolerancia_min} min de tolerancia. La hora puede perderse.`}</div>
+          <div className="mt-2 text-lg">{tolerancia > 0 ? `de tolerancia. Avísale a ${c.barbero} cuando llegues.` : `Pasaron los ${b.tolerancia_min} min de tolerancia.`}</div>
+          <div className="mt-2 rounded-xl bg-black/25 px-3 py-2 font-semibold">{tolerancia > 0 ? `Si pasas de ${b.tolerancia_min} min pierdes la hora, y recuperarla cuesta ${L(b.recargo_l)} más.` : `Vas tarde: si pierdes la hora, recuperarla cuesta ${L(b.recargo_l)} más.`}</div>
         </>)}
         {c.estado === 'en_atencion' && (<><div className="titulo text-6xl">Estás en la silla</div><div className="mt-2 text-lg">{c.barbero} te está atendiendo.</div></>)}
         {c.estado === 'terminada' && (<><div className="titulo text-6xl">¡Gracias, {c.nombre_publico}!</div><div className="mt-2 text-lg text-tenue">Te esperamos en tu próximo corte.</div></>)}
@@ -114,7 +126,30 @@ export default function Cita() {
           <dt className="text-tenue">Total</dt><dd className="titulo text-right text-3xl">{L(c.total_l)}</dd>
         </dl>
         <p className="mt-3 text-sm text-tenue">{b.nombre} · {b.direccion}</p>
+        {qr && ['agendada', 'en_atencion'].includes(c.estado) && (
+          <div className="mt-3 flex items-center gap-3 border-t-2 border-dashed border-borde pt-3">
+            <img src={qr} alt={`Código QR de la cita ${c.codigo}`} className="h-24 w-24 rounded-lg bg-white p-1" />
+            <p className="text-sm text-tenue">Muestra este código o el QR al barbero cuando llegues.</p>
+          </div>
+        )}
       </div>
+
+      {antes && !moviendo && (
+        <div className="mt-4 rounded-2xl border-2 border-verde bg-verde/15 p-4">
+          <div className="font-semibold">Hay una hora libre antes que la tuya</div>
+          <button className="btn btn-verde mt-2" onClick={() => mover(antes.inicio)}>Adelantar a las {hora12(antes.hora)}</button>
+        </div>
+      )}
+      {c.estado === 'agendada' && faltan > 0 && (
+        moviendo ? (
+          <div className="mt-5">
+            <h2 className="titulo text-3xl">Elige la nueva hora</h2>
+            <div className="mt-3"><SelectorHora hoy={ahora.slice(0, 10)} dias={b.dias_anticipacion} horario={b.horario} barbero={null} valor={nueva} onElegir={setNueva} /></div>
+            <button className="btn btn-azul mt-4" disabled={!nueva} onClick={() => mover(nueva)}>Cambiar mi cita</button>
+            <button className="btn btn-linea mt-2" onClick={() => { setMoviendo(false); setNueva(null); }}>Dejarla como está</button>
+          </div>
+        ) : <button className="btn btn-linea mt-4" onClick={() => setMoviendo(true)}>Cambiar hora</button>
+      )}
 
       {c.estado === 'agendada' && wa && (
         c.con_whatsapp
@@ -123,11 +158,11 @@ export default function Cita() {
               <p className="mt-2 text-center text-sm text-tenue">Se abre tu WhatsApp con un mensaje listo. Envíalo y te recordamos la cita por ahí.</p></>
       )}
 
-      {c.estado === 'no_llego' && !c.recuperada && cfg && (
+      {c.estado === 'no_llego' && !c.recuperada && (
         recuperando ? (
           <div className="mt-5">
             <h2 className="titulo text-3xl">Elige tu nueva hora</h2>
-            <div className="mt-3"><SelectorHora hoy={ahora.slice(0, 10)} dias={cfg.barberia.dias_anticipacion} horario={cfg.barberia.horario} barbero={null} valor={nueva} onElegir={setNueva} /></div>
+            <div className="mt-3"><SelectorHora hoy={ahora.slice(0, 10)} dias={b.dias_anticipacion} horario={b.horario} barbero={null} valor={nueva} onElegir={setNueva} /></div>
             <button className="btn btn-rojo mt-4" disabled={!nueva} onClick={recuperar}>Recuperar por {L(c.total_l + b.recargo_l)}</button>
             <p className="mt-2 text-center text-sm text-tenue">Incluye {L(b.recargo_l)} de recargo. Se paga en la barbería.</p>
           </div>

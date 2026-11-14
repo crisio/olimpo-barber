@@ -5,6 +5,8 @@ Citas en línea para Olimpo Barber. El cliente escanea un QR, elige día y hora,
 ## Cómo funciona
 
 - **Citas de 1 hora.** El cliente elige servicio (Corte L 150, Barba L 100, Cejas L 50), barbero y hora.
+- **Horario** de 10:00 a.m. a 9:00 p.m.; de 12:00 a 1:00 p.m. es almuerzo y no se reserva. Se reserva al menos 1 hora antes.
+- **Cancelar o cambiar hora.** Al liberarse una hora, quienes tienen cita más tarde ese día ven el botón para adelantarla (y reciben aviso por WhatsApp si está conectado).
 - **10 minutos de tolerancia.** Pasado ese tiempo el barbero puede marcar "No llegó".
 - **Recargo para recuperar.** Quien perdió su hora puede tomar otra pagando un recargo (L 50 por defecto).
 - Duración, tolerancia, recargo, horario, barberos y servicios se cambian desde el panel del dueño.
@@ -31,6 +33,12 @@ Citas en línea para Olimpo Barber. El cliente escanea un QR, elige día y hora,
 | Face ID / huella | Passkeys (WebAuthn) | — |
 | Anti-bots | Cloudflare Turnstile (opcional) | — |
 | Despliegue | GitHub Actions | `.github/workflows/deploy.yml` |
+
+## Modo demostración
+
+Si la web se publica sin la variable `API_URL`, funciona sola con datos de ejemplo guardados en el navegador, para revisar el diseño. Muestra una franja azul que lo indica. PIN de barbero: `1111`. Dueño: cualquier correo; el código aparece ya escrito.
+
+La guía para conectar Cloudflare paso a paso está en [`docs/CONFIGURAR-CLOUDFLARE.md`](docs/CONFIGURAR-CLOUDFLARE.md).
 
 ## Probar en tu computadora
 

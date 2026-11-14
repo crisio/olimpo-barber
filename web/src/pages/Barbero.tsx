@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, token } from '../api';
+import { DEMO, api, token } from '../api';
 import Agenda from '../Agenda';
 import { Aviso, Cargando, Logo, Pagina, useDatos } from '../ui';
 
@@ -61,7 +61,7 @@ function Entrar({ onListo }: { onListo: () => void }) {
             <button className="btn btn-linea !min-h-20 !text-4xl" onClick={() => tecla('0')}>0</button>
             <button className="btn btn-linea !min-h-20 !text-lg" onClick={() => setPin(pin.slice(0, -1))}>Borrar</button>
           </div>
-          <p className="mt-4 text-center text-sm text-tenue">¿No tienes PIN? Pídeselo al dueño.</p>
+          <p className="mt-4 text-center text-sm text-tenue">{DEMO ? 'En la demostración el PIN es 1111.' : '¿No tienes PIN? Pídeselo al dueño.'}</p>
         </div>
       )}
     </Pagina>

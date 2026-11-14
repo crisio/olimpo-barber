@@ -76,9 +76,10 @@ export default function Inicio() {
 
       <h2 className="titulo mt-8 text-3xl">Cómo funciona</h2>
       <ol className="mt-3 grid gap-2 text-base">
-        <li className="rounded-xl border border-borde bg-carta px-4 py-3"><b>1.</b> Eliges día y hora. Cada cita dura {b.duracion_cita_min} minutos.</li>
+        <li className="rounded-xl border border-borde bg-carta px-4 py-3"><b>1.</b> Eliges día y hora{b.anticipacion_min ? `, al menos ${b.anticipacion_min >= 60 ? `${b.anticipacion_min / 60} h` : `${b.anticipacion_min} min`} antes` : ''}. Cada cita dura {b.duracion_cita_min} minutos.</li>
         <li className="rounded-xl border border-borde bg-carta px-4 py-3"><b>2.</b> Llega puntual: te esperamos {b.tolerancia_min} minutos.</li>
-        <li className="rounded-xl border border-borde bg-carta px-4 py-3"><b>3.</b> Si pasan los {b.tolerancia_min} minutos, la hora se pierde. Recuperarla tiene un recargo de {L(b.recargo_l)}.</li>
+        <li className="rounded-xl border border-borde bg-carta px-4 py-3"><b>3.</b> ¿No puedes ir? Cancela desde tu cita y la hora queda libre para otra persona.</li>
+        <li className="rounded-xl border border-borde bg-carta px-4 py-3"><b>4.</b> Si pasan los {b.tolerancia_min} minutos, la hora se pierde. Recuperarla tiene un recargo de {L(b.recargo_l)}.</li>
       </ol>
 
       <footer className="mt-10 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-tenue">
