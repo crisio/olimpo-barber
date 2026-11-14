@@ -159,6 +159,7 @@ Para conectar: crea una app en Meta for Developers con el producto WhatsApp, reg
 
 ## Datos y privacidad
 
+- **Registro de uso**: se guarda cada toque en botones y enlaces (texto del botón, pantalla y hora), con el nombre del personal si hay sesión o un identificador anónimo del navegador si no. Una página web no puede leer la MAC del equipo. No se registra lo que se escribe ni las teclas del PIN. Se ve en **Panel → Actividad** y se borra a los 90 días.
 - El teléfono solo lo ve el personal con sesión iniciada. Las rutas públicas devuelven nombre e inicial, nunca teléfonos.
 - El teléfono se borra solo 90 días después de la última cita.
 - El cliente deja de recibir avisos respondiendo `BAJA`.

@@ -101,7 +101,7 @@ function Entrar({ onListo }: { onListo: () => void }) {
             {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className={`h-5 w-5 rounded-full border-2 border-crema ${i < pin.length ? 'bg-crema' : ''}`} />)}
           </div>
           {fallo && <div className="mt-4"><Aviso>{fallo}</Aviso></div>}
-          <div className="mt-5 grid grid-cols-3 gap-2">
+          <div className="mt-5 grid grid-cols-3 gap-2" data-sin-registro>
             {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => <button key={d} className="btn btn-linea !min-h-20 !text-4xl" onClick={() => tecla(d)}>{d}</button>)}
             <button className="btn btn-linea !min-h-20 !text-lg" onClick={() => { setQuien(null); setPin(''); setFallo(''); }}>Atrás</button>
             <button className="btn btn-linea !min-h-20 !text-4xl" onClick={() => tecla('0')}>0</button>

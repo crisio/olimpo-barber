@@ -9,7 +9,7 @@ import { CambiarPin } from './Barbero';
 import Notificaciones from '../Notificaciones';
 import { Aviso, Carta, Cargando, Emblema, Logo, Pagina, Poste, useDatos } from '../ui';
 
-const PESTANAS = ['Panel', 'Agenda', 'Ajustes', 'Clientes', 'WhatsApp', 'Cartel'] as const;
+const PESTANAS = ['Panel', 'Agenda', 'Ajustes', 'Clientes', 'WhatsApp', 'Actividad', 'Cartel'] as const;
 
 export default function Dueno() {
   const [dentro, setDentro] = useState(!!token.leer());
@@ -40,6 +40,7 @@ export default function Dueno() {
         {tab === 'Ajustes' && <Ajustes />}
         {tab === 'Clientes' && <Clientes />}
         {tab === 'WhatsApp' && <WhatsApp />}
+        {tab === 'Actividad' && <Actividad />}
         {tab === 'Cartel' && <Cartel barberoId={yo.atiende ? yo.barbero_id : null} />}
       </div>
     </Pagina>
@@ -363,6 +364,49 @@ function WhatsApp() {
           ))}
         </ul>
       </div>
+    </div>
+  );
+}
+
+const cuando = (iso: string) => new Date(iso).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+const nombreQuien = (f: any) => (f.usuario ? f.usuario : `Visitante ${String(f.quien).slice(0, 6)}`);
+
+function Actividad() {
+  const [rango, setRango] = useState('hoy');
+  const [quien, setQuien] = useState('');
+  const { datos } = useDatos<any>(`/eventos/resumen?rango=${rango}${quien ? `&quien=${encodeURIComponent(quien)}` : ''}`, 30000);
+  return (
+    <div>
+      <div className="flex gap-2" role="tablist" aria-label="Periodo">
+        {[['hoy', '24 horas'], ['semana', '7 días'], ['mes', '30 días']].map(([v, t]) => (
+          <button key={v} role="tab" aria-selected={rango === v} onClick={() => setRango(v)} className={`titulo flex-1 rounded-xl border-2 py-2 text-xl ${rango === v ? 'border-azul bg-azul text-white' : 'border-borde'}`}>{t}</button>
+        ))}
+      </div>
+      {!datos ? <Cargando /> : (<>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Dato titulo="Toques registrados" valor={datos.total.clics} />
+          <Dato titulo="Dispositivos distintos" valor={datos.total.dispositivos} />
+        </div>
+        <p className="mt-2 text-sm text-tenue">Se registra cada toque en botones y enlaces. Con sesión iniciada aparece el nombre; sin sesión, un identificador anónimo del navegador (una página web no puede leer la MAC del equipo).</p>
+        <h2 className="titulo mt-6 text-3xl">Por usuario o dispositivo</h2>
+        {!datos.por_quien.length ? <p className="mt-2 text-tenue">Aún no hay actividad en este periodo.</p> : (
+          <ul className="mt-2 grid gap-2">
+            {datos.por_quien.map((f: any) => (
+              <li key={f.quien}>
+                <button aria-pressed={quien === f.quien} onClick={() => setQuien(quien === f.quien ? '' : f.quien)}
+                  className={`flex w-full items-center justify-between gap-3 rounded-xl border-2 px-4 py-3 text-left ${quien === f.quien ? 'border-azul bg-azul/15' : 'border-borde bg-carta'}`}>
+                  <span><span className="font-semibold">{nombreQuien(f)}</span><span className="block text-sm text-tenue">Último: {cuando(f.ultimo)}{f.usuario && f.dispositivos > 1 ? ` · ${f.dispositivos} dispositivos` : ''}</span></span>
+                  <span className="titulo text-3xl">{f.clics}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <h2 className="titulo mt-6 text-3xl">Lo más tocado{quien ? ' (filtrado)' : ''}</h2>
+        <Tabla cab={['Botón o enlace', 'Pantalla', 'Toques']} filas={datos.top.map((t: any) => [t.elemento, t.ruta, t.clics])} />
+        <h2 className="titulo mt-6 text-3xl">Últimos toques{quien ? ' (filtrado)' : ''}</h2>
+        <Tabla cab={['Quién', 'Botón o enlace', 'Pantalla', 'Cuándo']} filas={datos.recientes.map((r: any) => [nombreQuien(r), r.elemento, r.ruta, cuando(r.creado_en)])} />
+      </>)}
     </div>
   );
 }
