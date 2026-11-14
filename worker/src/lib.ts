@@ -7,6 +7,7 @@ export type Env = {
   OWNER_EMAIL?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
+  RESEND_PLANTILLA?: string;
   TURNSTILE_SECRET?: string;
   WA_TOKEN?: string;
   WA_PHONE_ID?: string;

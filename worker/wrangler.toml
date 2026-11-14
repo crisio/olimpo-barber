@@ -4,7 +4,7 @@ compatibility_date = "2025-06-01"
 compatibility_flags = ["nodejs_compat"]
 
 # Cuando el dominio esté en Cloudflare, descomenta y ajusta:
-# routes = [{ pattern = "api.turnoya.TU-DOMINIO.com", custom_domain = true }]
+# routes = [{ pattern = "api-turnoya.pensolabs.com", custom_domain = true }]
 
 [triggers]
 crons = ["*/5 * * * *"]
@@ -22,9 +22,12 @@ bucket_name = "turnoya-archivos"
 [vars]
 ENTORNO = "prod"
 # Orígenes permitidos de la web (separados por coma) y dominio para Face ID / passkeys
-ORIGEN_WEB = "https://crisio.github.io"
-RP_ID = "crisio.github.io"
-RESEND_FROM = "TurnoYa <acceso@TU-DOMINIO.com>"
+ORIGEN_WEB = "https://turnoya.pensolabs.com,https://crisio.github.io"
+RP_ID = "turnoya.pensolabs.com"
+WEB_URL = "https://turnoya.pensolabs.com"
+RESEND_FROM = "Olimpo Barber <olimpobarberclub@pensolabs.com>"
+# Plantilla publicada en Resend (variables CODE, USER_NAME, EXPIRES_MINUTES)
+RESEND_PLANTILLA = "olimpo-verificacion"
 
 # Secretos (wrangler secret put ...): OWNER_EMAIL, RESEND_API_KEY, TURNSTILE_SECRET,
 # WA_TOKEN, WA_PHONE_ID, WA_VERIFY_TOKEN, WA_APP_SECRET, WA_PLANTILLA_RECORDATORIO

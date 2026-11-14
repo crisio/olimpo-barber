@@ -8,7 +8,7 @@ Al terminar, la app deja de estar en modo demostración y guarda citas reales.
 
 Necesitas:
 
-- Acceso a la cuenta de **Cloudflare** donde está el dominio de Pencil Labs.
+- Acceso a la cuenta de **Cloudflare** donde está el dominio `pensolabs.com`.
 - Acceso de administrador al repositorio **crisio/olimpo-barber** en GitHub.
 - Acceso a la cuenta de **Resend**.
 - El **correo del dueño** de la barbería (el único que podrá entrar al panel).
@@ -17,8 +17,8 @@ Decide dos direcciones y anótalas. En esta guía se usan estos ejemplos; cámbi
 
 | Qué | Ejemplo |
 |---|---|
-| Web (lo que abre el cliente) | `turnoya.pencillabs.com` |
-| API | `api-turnoya.pencillabs.com` |
+| Web (lo que abre el cliente) | `turnoya.pensolabs.com` |
+| API | `api-turnoya.pensolabs.com` |
 
 Ya está hecho y **no hay que repetirlo**: la base de datos D1 llamada `turnoya` existe, con sus tablas y los datos de Olimpo Barber.
 
@@ -51,7 +51,7 @@ Ya está hecho y **no hay que repetirlo**: la base de datos D1 llamada `turnoya`
    | Zone | Workers Routes | Edit |
    | Zone | DNS | Edit |
 
-5. En **Account Resources** elige la cuenta. En **Zone Resources** elige el dominio de Pencil Labs.
+5. En **Account Resources** elige la cuenta. En **Zone Resources** elige el dominio `pensolabs.com`.
 6. **Continue to summary** → **Create Token**.
 7. Copia el token. Solo se muestra una vez.
 
@@ -69,14 +69,14 @@ Ya está hecho y **no hay que repetirlo**: la base de datos D1 llamada `turnoya`
 
    | Nombre | Valor |
    |---|---|
-   | `API_URL` | `https://api-turnoya.pencillabs.com` |
-   | `DOMINIO_WEB` | `turnoya.pencillabs.com` |
+   | `API_URL` | `https://api-turnoya.pensolabs.com` |
+   | `DOMINIO_WEB` | `turnoya.pensolabs.com` |
 
    Sin `https://` en `DOMINIO_WEB`. Con `https://` en `API_URL`.
 
 ## Paso 5. Crear el registro DNS de la web
 
-1. En Cloudflare abre el dominio de Pencil Labs → **DNS** → **Records** → **Add record**.
+1. En Cloudflare abre el dominio `pensolabs.com` → **DNS** → **Records** → **Add record**.
 2. Llena así:
 
    | Campo | Valor |
@@ -90,41 +90,28 @@ Ya está hecho y **no hay que repetirlo**: la base de datos D1 llamada `turnoya`
 
 El registro de la API no se crea a mano: lo crea el despliegue.
 
-## Paso 6. Poner el dominio en el código
+## Paso 6. Activar la dirección de la API en el código
 
-Edita el archivo `worker/wrangler.toml` del repositorio (se puede desde GitHub con el lápiz):
+El dominio, el remitente y la plantilla de Resend ya están escritos en `worker/wrangler.toml`. Solo falta activar la dirección de la API:
 
-1. Busca la línea que empieza con `# routes =`. Quítale el `# ` y deja:
-
-   ```toml
-   routes = [{ pattern = "api-turnoya.pencillabs.com", custom_domain = true }]
-   ```
-
-2. En la sección `[vars]` cambia estas tres líneas:
+1. Abre `worker/wrangler.toml` en GitHub y pulsa el lápiz.
+2. Busca esta línea y quítale el `# ` del inicio:
 
    ```toml
-   ORIGEN_WEB = "https://turnoya.pencillabs.com"
-   RP_ID = "turnoya.pencillabs.com"
-   RESEND_FROM = "TurnoYa <acceso@pencillabs.com>"
+   # routes = [{ pattern = "api-turnoya.pensolabs.com", custom_domain = true }]
    ```
 
-3. Agrega una línea más en `[vars]`:
+3. Guarda el cambio en la rama `main`.
 
-   ```toml
-   WEB_URL = "https://turnoya.pencillabs.com"
-   ```
+Si al final se usa otra dirección para la web, hay que cambiar también `ORIGEN_WEB`, `RP_ID` y `WEB_URL` en ese archivo. `RP_ID` debe ser exactamente el dominio de la web, sin `https://`; si no coincide, Face ID no funciona.
 
-4. Guarda el cambio en la rama `main`.
+## Paso 7. Crear la clave de Resend
 
-`RP_ID` debe ser exactamente el dominio de la web, sin `https://`. Si no coincide, Face ID no funciona.
+El dominio `pensolabs.com` ya está verificado en Resend, con el remitente `olimpobarberclub@pensolabs.com` y la plantilla `olimpo-verificacion` publicada. Solo falta la clave:
 
-## Paso 7. Verificar el dominio en Resend
-
-1. Entra a <https://resend.com/domains> → **Add Domain**.
-2. Escribe el dominio usado en `RESEND_FROM` (ejemplo: `pencillabs.com`).
-3. Resend muestra varios registros DNS. Cópialos uno por uno en Cloudflare (**DNS → Records → Add record**), todos en **DNS only**.
-4. Vuelve a Resend y pulsa **Verify**. Puede tardar unos minutos.
-5. En <https://resend.com/api-keys> crea una clave con permiso **Sending access** y cópiala.
+1. Entra a <https://resend.com/api-keys> → **Create API Key**.
+2. Nombre: `turnoya`. Permiso: **Sending access**. Dominio: `pensolabs.com`.
+3. Copia la clave. Solo se muestra una vez.
 
 ## Paso 8. Desplegar por primera vez
 
@@ -149,15 +136,15 @@ Si **API** falla en "Crear bucket R2", falta el paso 2.
 ## Paso 10. Activar el dominio en GitHub Pages
 
 1. Abre <https://github.com/crisio/olimpo-barber/settings/pages>.
-2. En **Custom domain** debe aparecer `turnoya.pencillabs.com`. Si está vacío, escríbelo y **Save**.
+2. En **Custom domain** debe aparecer `turnoya.pensolabs.com`. Si está vacío, escríbelo y **Save**.
 3. Cuando termine la verificación, marca **Enforce HTTPS**.
 
 ## Paso 11. Comprobar que funciona
 
-1. Abre `https://api-turnoya.pencillabs.com/api/barberia`. Debe mostrar texto con "Olimpo Barber".
-2. Abre `https://turnoya.pencillabs.com`. Ya no debe aparecer la franja azul de "Demostración".
+1. Abre `https://api-turnoya.pensolabs.com/api/barberia`. Debe mostrar texto con "Olimpo Barber".
+2. Abre `https://turnoya.pensolabs.com`. Ya no debe aparecer la franja azul de "Demostración".
 3. Reserva una cita de prueba.
-4. Abre `https://turnoya.pencillabs.com/dueno`, entra con el correo del dueño y el código que llega por correo.
+4. Abre `https://turnoya.pensolabs.com/dueno`, entra con el correo del dueño y el código que llega por correo.
 5. En **Ajustes** asigna un PIN a cada barbero.
 6. En el panel toca **Activar Face ID o huella**.
 
@@ -165,7 +152,7 @@ Si **API** falla en "Crear bucket R2", falta el paso 2.
 
 ## Opcional. Verificación anti-bots (Turnstile)
 
-1. En Cloudflare: **Turnstile** → **Add widget**. Dominio: `turnoya.pencillabs.com`. Modo **Managed**.
+1. En Cloudflare: **Turnstile** → **Add widget**. Dominio: `turnoya.pensolabs.com`. Modo **Managed**.
 2. Copia la **Site Key** a GitHub como variable `TURNSTILE_SITEKEY` (paso 4).
 3. Copia la **Secret Key** al Worker como secreto `TURNSTILE_SECRET` (paso 9).
 4. Vuelve a correr el despliegue (paso 8).
@@ -177,7 +164,7 @@ Sin esto la app trabaja en modo de prueba: no envía mensajes y los deja en una 
 Hace falta una app en Meta for Developers con el producto WhatsApp y un número registrado en la API. Un número que ya se usa en la app normal de WhatsApp Business no sirve a la vez; lo más simple es un número aparte.
 
 1. En la app de Meta: **WhatsApp → Configuration → Webhook**.
-   - Callback URL: `https://api-turnoya.pencillabs.com/api/whatsapp/webhook`
+   - Callback URL: `https://api-turnoya.pensolabs.com/api/whatsapp/webhook`
    - Verify token: inventa un texto largo y anótalo.
    - Suscribe el campo `messages`.
 2. Agrega estos secretos al Worker (paso 9):

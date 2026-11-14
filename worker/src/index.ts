@@ -282,15 +282,23 @@ app.post('/api/auth/codigo', async (c) => {
     await c.env.DB.prepare('INSERT OR REPLACE INTO codigos_login (email, codigo_hash, expira_en) VALUES (?,?,?)')
       .bind(email, await sha256(`${email}:${codigo}`), new Date(Date.now() + 10 * 60e3).toISOString()).run();
     if (c.env.RESEND_API_KEY) {
-      const r = await fetch('https://api.resend.com/emails', {
+      const enviar = (contenido: object) => fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { authorization: `Bearer ${c.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-        body: JSON.stringify({
-          from: c.env.RESEND_FROM, to: [email], subject: `${codigo} es tu código de TurnoYa`,
-          html: `<div style="font-family:sans-serif;max-width:420px"><h2>TurnoYa · Olimpo Barber</h2><p>Tu código para entrar es:</p><p style="font-size:34px;letter-spacing:6px;font-weight:700">${codigo}</p><p>Vence en 10 minutos. Si no lo pediste, ignora este correo.</p></div>`,
-        }),
+        body: JSON.stringify({ from: c.env.RESEND_FROM, to: [email], ...contenido }),
       });
-      if (!r.ok) console.error('Resend', r.status, await r.text());
+      // Primero la plantilla publicada en Resend; si falla, un correo sencillo con el mismo código
+      let r = c.env.RESEND_PLANTILLA
+        ? await enviar({ template: { id: c.env.RESEND_PLANTILLA, variables: { CODE: codigo, USER_NAME: email.split('@')[0], EXPIRES_MINUTES: '10' } } })
+        : null;
+      if (!r?.ok) {
+        if (r) console.error('Resend plantilla', r.status, await r.text());
+        r = await enviar({
+          subject: `${codigo} es tu código de TurnoYa`,
+          html: `<div style="font-family:sans-serif;max-width:420px"><h2>TurnoYa · Olimpo Barber</h2><p>Tu código para entrar es:</p><p style="font-size:34px;letter-spacing:6px;font-weight:700">${codigo}</p><p>Vence en 10 minutos. Si no lo pediste, ignora este correo.</p></div>`,
+        });
+        if (!r.ok) console.error('Resend', r.status, await r.text());
+      }
     } else if (c.env.ENTORNO === 'dev') {
       respuesta.codigo_dev = codigo; // solo en desarrollo, sin Resend
     }
