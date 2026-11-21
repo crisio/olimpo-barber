@@ -2,13 +2,15 @@
 // Una página web no puede abrir la app de un banco en la pantalla de transferir: se enlaza a la ficha
 // de la app en Play Store o App Store, que muestra «Abrir» si el cliente ya la tiene instalada.
 // Identificadores tomados de los enlaces de Play Store y App Store (nombre de la app y banco a la vista), nov. 2026.
-// Si un banco cambia de app, se corrige aquí. Los colores son decorativos, no los oficiales de cada banco.
+// Si un banco cambia de app, se corrige aquí. Los colores son decorativos salvo los que tienen ícono (tomados del ícono).
 
 export type Banco = {
   clave: string;
   nombre: string;
   corto: string;
   sigla?: string;
+  /** Ícono oficial de la app del banco, guardado en public/bancos (sin él se muestran las iniciales). */
+  logo?: string;
   color: string;
   android: string | null; // paquete de Play Store
   ios: string | null; // número de App Store
@@ -17,7 +19,8 @@ export type Banco = {
 };
 
 export const BANCOS: Banco[] = [
-  { clave: 'atlantida', nombre: 'Banco Atlántida', corto: 'Atlántida', sigla: 'AT', color: '#b91c1c', android: 'com.atlantida.bda', ios: '6749024321', web: 'https://www.bancatlan.hn' },
+  // Ícono y App Store verificados en la tienda de Apple: «Atlántida HN», de Informática Atlántida S.A.
+  { clave: 'atlantida', nombre: 'Banco Atlántida', corto: 'Atlántida', sigla: 'AT', logo: 'atlantida.png', color: '#d9272e', android: 'com.atlantida.bda', ios: '6749024321', web: 'https://www.bancatlan.hn' },
   { clave: 'banpais', nombre: 'Banpaís', corto: 'Banpaís', sigla: 'BP', color: '#1d4ed8', android: 'hn.com.bi.banpais', ios: '1019342453', web: 'https://www.banpais.hn' },
   { clave: 'bac', nombre: 'BAC Credomatic', corto: 'BAC', sigla: 'BAC', color: '#be123c', android: 'net.bac.sbe.android', ios: '465508552', web: 'https://www.baccredomatic.com/es-hn' },
   { clave: 'ficohsa', nombre: 'Banco Ficohsa', corto: 'Ficohsa', sigla: 'FI', color: '#1e40af', android: 'com.ficohsa.activities', ios: '474591239', web: 'https://www.ficohsa.com/hn/' },
@@ -53,6 +56,9 @@ export function enlaceApp(b: Banco): string | null {
   if (esAndroid() && b.android) return `https://play.google.com/store/apps/details?id=${b.android}`;
   return b.web;
 }
+
+/** Dirección del ícono del banco dentro de la web. */
+export const urlLogoBanco = (b: Banco) => (b.logo ? `${import.meta.env.BASE_URL}bancos/${b.logo}` : null);
 
 /** Iniciales para el sello de color del banco. */
 export function iniciales(b: Banco) {
