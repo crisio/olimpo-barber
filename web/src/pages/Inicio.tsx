@@ -38,7 +38,14 @@ export default function Inicio() {
     <Pagina>
       <Logo grande />
       <Poste className="mt-4" />
-      <p className="mt-4 text-tenue">{b.direccion}</p>
+      {b.descripcion && <p className="mt-4 whitespace-pre-line text-lg">{b.descripcion}</p>}
+      {b.direccion && (
+        <p className="mt-4 text-tenue">
+          {b.direccion}{' · '}
+          <a className="underline" target="_blank" rel="noopener noreferrer"
+            href={b.mapa_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${b.nombre}, ${b.direccion}`)}`}>Cómo llegar</a>
+        </p>
+      )}
       <p className="mt-1 flex items-center gap-2 font-semibold">
         <span className={`inline-block h-3 w-3 rounded-full ${h.abierto ? 'bg-verde' : 'bg-rojo'}`} aria-hidden="true" />{h.texto}
       </p>
@@ -82,11 +89,34 @@ export default function Inicio() {
         <li className="rounded-xl border border-borde bg-carta px-4 py-3"><b>4.</b> Si pasan los {b.tolerancia_min} minutos, la hora se pierde. Recuperarla tiene un recargo de {L(b.recargo_l)}.</li>
       </ol>
 
+      <Contacto b={b} />
+
       <footer className="mt-10 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-tenue">
         <Link className="underline" to="/privacidad">Aviso de privacidad</Link>
         <Link className="underline" to="/barbero">Soy barbero</Link>
         <Link className="underline" to="/dueno">Soy el dueño</Link>
       </footer>
     </Pagina>
+  );
+}
+
+/** WhatsApp y redes sociales del negocio, si el dueño los configuró. */
+function Contacto({ b }: { b: any }) {
+  const redes = [
+    b.whatsapp_numero && { texto: 'WhatsApp', url: `https://wa.me/${b.whatsapp_numero}` },
+    b.instagram && { texto: 'Instagram', url: `https://instagram.com/${b.instagram}` },
+    b.facebook && { texto: 'Facebook', url: /^https?:\/\//.test(b.facebook) ? b.facebook : `https://facebook.com/${b.facebook}` },
+    b.tiktok && { texto: 'TikTok', url: `https://www.tiktok.com/@${b.tiktok}` },
+  ].filter(Boolean) as { texto: string; url: string }[];
+  if (!redes.length) return null;
+  return (
+    <>
+      <h2 className="titulo mt-8 text-3xl">Síguenos</h2>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {redes.map((r) => (
+          <a key={r.texto} href={r.url} target="_blank" rel="noopener noreferrer" className="btn btn-linea !min-h-12 !text-lg">{r.texto}</a>
+        ))}
+      </div>
+    </>
   );
 }

@@ -4,17 +4,19 @@ import QRCode from 'qrcode';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
 import { API, DEMO, L, api, hora12, token } from '../api';
 import Agenda from '../Agenda';
+import Configuracion from '../Configuracion';
 import CompartirQR, { urlPublica } from '../CompartirQR';
 import { CambiarPin } from './Barbero';
 import Notificaciones from '../Notificaciones';
-import { Aviso, Carta, Cargando, Emblema, Logo, Pagina, Poste, useDatos } from '../ui';
+import { Aviso, Carta, Cargando, Logo, Pagina, Poste, useDatos } from '../ui';
 
-const PESTANAS = ['Panel', 'Agenda', 'Ajustes', 'Clientes', 'WhatsApp', 'Actividad', 'Cartel'] as const;
+const PESTANAS = ['Panel', 'Agenda', 'Configuración', 'Clientes', 'WhatsApp', 'Actividad', 'Cartel'] as const;
 
 export default function Dueno() {
   const [dentro, setDentro] = useState(!!token.leer());
   const { datos: yo, error, recargar } = useDatos<any>(dentro ? '/auth/yo' : null);
   const [tab, setTab] = useState<(typeof PESTANAS)[number]>('Panel');
+  const [vuelta, setVuelta] = useState(0); // tocar otra vez Configuración regresa a su menú
   if (dentro && error?.estado === 401) { token.guardar(null); setDentro(false); }
   if (!dentro) return <Entrar onListo={() => setDentro(true)} />;
   if (!yo) return <Pagina><Logo /><Cargando /></Pagina>;
@@ -29,7 +31,7 @@ export default function Dueno() {
         </div>
         <nav className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1" aria-label="Secciones">
           {PESTANAS.map((p) => (
-            <button key={p} aria-current={tab === p ? 'page' : undefined} onClick={() => setTab(p)}
+            <button key={p} aria-current={tab === p ? 'page' : undefined} onClick={() => { if (tab === p) setVuelta((v) => v + 1); setTab(p); }}
               className={`titulo shrink-0 rounded-xl border-2 px-4 py-2 text-xl ${tab === p ? 'border-crema bg-crema text-fondo' : 'border-borde'}`}>{p}</button>
           ))}
         </nav>
@@ -37,7 +39,7 @@ export default function Dueno() {
       <div className="mt-4">
         {tab === 'Panel' && <Panel yo={yo} onPasskey={recargar} />}
         {tab === 'Agenda' && <Agenda rol="dueno" />}
-        {tab === 'Ajustes' && <Ajustes />}
+        {tab === 'Configuración' && <Configuracion key={vuelta} yo={yo} />}
         {tab === 'Clientes' && <Clientes />}
         {tab === 'WhatsApp' && <WhatsApp />}
         {tab === 'Actividad' && <Actividad />}
@@ -173,133 +175,6 @@ function Tabla({ cab, filas }: { cab: string[]; filas: (string | number)[][] }) 
   );
 }
 
-const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-
-function Ajustes() {
-  const { datos, recargar } = useDatos<any>('/config');
-  const [b, setB] = useState<any>(null);
-  const [msj, setMsj] = useState<{ tono: 'verde' | 'rojo'; texto: string } | null>(null);
-  useEffect(() => { if (datos && !b) setB(datos.barberia); }, [datos]); // eslint-disable-line react-hooks/exhaustive-deps
-  if (!datos || !b) return <Cargando />;
-  const guardar = async (fn: () => Promise<unknown>, ok = 'Guardado.') => {
-    try { await fn(); setMsj({ tono: 'verde', texto: ok }); await recargar(); } catch (e: any) { setMsj({ tono: 'rojo', texto: e.message }); }
-  };
-  const num = (k: string, etiqueta: string, sufijo: string) => (
-    <label className="block text-sm text-tenue">{etiqueta}
-      <div className="mt-1 flex items-center gap-2"><input className="campo" type="number" min={0} value={b[k]} onChange={(e) => setB({ ...b, [k]: e.target.value })} /><span>{sufijo}</span></div>
-    </label>
-  );
-  return (
-    <div className="grid gap-4">
-      {msj && <Aviso tono={msj.tono}>{msj.texto}</Aviso>}
-      <Carta>
-        <h2 className="titulo text-3xl">Agenda</h2>
-        <label className="mt-3 flex items-center gap-3 text-lg">
-          <input type="checkbox" className="h-6 w-6" checked={!!b.agenda_abierta} onChange={(e) => { const v = { ...b, agenda_abierta: e.target.checked ? 1 : 0 }; setB(v); guardar(() => api('/barberia', v, 'PUT'), e.target.checked ? 'Agenda abierta.' : 'Agenda cerrada: no se aceptan citas nuevas.'); }} />
-          Aceptar citas nuevas
-        </label>
-      </Carta>
-      <Carta>
-        <h2 className="titulo text-3xl">Barbería</h2>
-        <form className="mt-3 grid gap-3" onSubmit={(e) => { e.preventDefault(); guardar(() => api('/barberia', b, 'PUT')); }}>
-          <label className="block text-sm text-tenue">Nombre<input className="campo mt-1" value={b.nombre} onChange={(e) => setB({ ...b, nombre: e.target.value })} /></label>
-          <label className="block text-sm text-tenue">Dirección<input className="campo mt-1" value={b.direccion} onChange={(e) => setB({ ...b, direccion: e.target.value })} /></label>
-          <label className="block text-sm text-tenue">WhatsApp Business de la barbería (8 dígitos)<input className="campo mt-1" inputMode="numeric" value={b.whatsapp_numero ?? ''} onChange={(e) => setB({ ...b, whatsapp_numero: e.target.value })} placeholder="9999-9999" /></label>
-          <div className="grid grid-cols-2 gap-3">
-            {num('duracion_cita_min', 'Duración de cada cita', 'min')}
-            {num('tolerancia_min', 'Tolerancia de espera', 'min')}
-            {num('recargo_l', 'Recargo por recuperar', 'L')}
-            {num('dias_anticipacion', 'Se agenda hasta con', 'días')}
-            {num('anticipacion_min', 'Reservar al menos con', 'min antes')}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!b.almuerzo} onChange={(e) => setB({ ...b, almuerzo: e.target.checked ? ['12:00', '13:00'] : null })} />Hora de almuerzo (no se reserva)</label>
-            {b.almuerzo && (<>
-              <input aria-label="Almuerzo desde" type="time" className="campo !w-auto !px-2 !py-2" value={b.almuerzo[0]} onChange={(e) => setB({ ...b, almuerzo: [e.target.value, b.almuerzo[1]] })} />
-              <input aria-label="Almuerzo hasta" type="time" className="campo !w-auto !px-2 !py-2" value={b.almuerzo[1]} onChange={(e) => setB({ ...b, almuerzo: [b.almuerzo[0], e.target.value] })} />
-            </>)}
-          </div>
-          <fieldset>
-            <legend className="text-sm text-tenue">Horario</legend>
-            <div className="mt-1 grid gap-2">
-              {DIAS.map((d, i) => {
-                const r = b.horario[i];
-                return (
-                  <div key={d} className="flex items-center gap-2">
-                    <label className="flex w-32 items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!r} onChange={(e) => setB({ ...b, horario: { ...b.horario, [i]: e.target.checked ? ['10:00', '21:00'] : null } })} />{d}</label>
-                    {r ? (<>
-                      <input aria-label={`${d} abre`} type="time" className="campo !px-2 !py-2" value={r[0]} onChange={(e) => setB({ ...b, horario: { ...b.horario, [i]: [e.target.value, r[1]] } })} />
-                      <input aria-label={`${d} cierra`} type="time" className="campo !px-2 !py-2" value={r[1]} onChange={(e) => setB({ ...b, horario: { ...b.horario, [i]: [r[0], e.target.value] } })} />
-                    </>) : <span className="text-tenue">Cerrado</span>}
-                  </div>
-                );
-              })}
-            </div>
-          </fieldset>
-          <button className="btn btn-rojo">Guardar barbería</button>
-        </form>
-      </Carta>
-      <Carta>
-        <h2 className="titulo text-3xl">Barberos</h2>
-        <div className="mt-3 grid gap-3">
-          {[...datos.barberos, { nuevo: true, nombre: '', apodo: '', activo: 1 }].map((x: any) => <FilaBarbero key={x.id ?? 'nuevo'} inicial={x} onGuardar={(d) => guardar(() => api('/barberos', d))} onFoto={() => recargar()} />)}
-        </div>
-      </Carta>
-      <Carta>
-        <h2 className="titulo text-3xl">Servicios</h2>
-        <div className="mt-3 grid gap-3">
-          {[...datos.servicios, { nuevo: true, nombre: '', descripcion: '', precio_l: '', activo: 1 }].map((x: any) => <FilaServicio key={x.id ?? 'nuevo'} inicial={x} onGuardar={(d) => guardar(() => api('/servicios', d))} />)}
-        </div>
-      </Carta>
-    </div>
-  );
-}
-
-function FilaBarbero({ inicial, onGuardar, onFoto }: { inicial: any; onGuardar: (d: any) => void; onFoto: () => void }) {
-  const [x, setX] = useState({ ...inicial, pin: '' });
-  async function subir(f: File) {
-    if (DEMO) { alert('Las fotos se activan cuando la app esté conectada a Cloudflare.'); return; }
-    const r = await fetch(`${API}/api/archivos?barbero=${x.id}`, { method: 'POST', headers: { 'content-type': f.type, authorization: `Bearer ${token.leer()}` }, body: f });
-    if (!r.ok) alert((await r.json().catch(() => ({}))).error ?? 'No se pudo subir la foto.'); else onFoto();
-  }
-  return (
-    <form className="rounded-xl border border-borde p-3" onSubmit={(e) => { e.preventDefault(); onGuardar({ ...x, activo: !!x.activo, es_admin: !!x.es_admin, atiende: x.atiende !== 0, pin: x.pin || undefined }); if (x.nuevo) setX({ ...inicial, pin: '' }); else setX({ ...x, pin: '' }); }}>
-      <div className="grid grid-cols-2 gap-2">
-        <input aria-label="Nombre del barbero" className="campo" placeholder={x.nuevo ? 'Nuevo barbero' : 'Nombre'} value={x.nombre} onChange={(e) => setX({ ...x, nombre: e.target.value })} />
-        <input aria-label="Apodo" className="campo" placeholder="Apodo" value={x.apodo ?? ''} onChange={(e) => setX({ ...x, apodo: e.target.value })} />
-        <input aria-label="PIN" className="campo" inputMode="numeric" maxLength={6} placeholder={x.con_pin ? 'Cambiar PIN' : 'PIN de 6 números'} value={x.pin} onChange={(e) => setX({ ...x, pin: e.target.value.replace(/\D/g, '') })} />
-        {!x.nuevo && <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.activo} onChange={(e) => setX({ ...x, activo: e.target.checked ? 1 : 0 })} />Activo</label>}
-        <input aria-label="WhatsApp del barbero" className="campo col-span-2" inputMode="numeric" maxLength={9} placeholder="Su WhatsApp para avisos de citas (8 dígitos)" value={x.telefono ? String(x.telefono).replace(/^504/, '') : ''} onChange={(e) => setX({ ...x, telefono: e.target.value.replace(/[^\d-]/g, '') })} />
-        <label className="col-span-2 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={x.atiende !== 0} onChange={(e) => setX({ ...x, atiende: e.target.checked ? 1 : 0 })} />Atiende clientes (aparece para agendar)</label>
-        <label className="col-span-2 flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.es_admin} onChange={(e) => setX({ ...x, es_admin: e.target.checked ? 1 : 0 })} />Administrador: entra al panel con su PIN</label>
-      </div>
-      <div className="mt-2 flex items-center gap-3">
-        <button className="btn btn-linea !min-h-11 !w-auto !text-lg" disabled={!x.nombre.trim()}>{x.nuevo ? 'Agregar' : 'Guardar'}</button>
-        {!x.nuevo && <label className="cursor-pointer text-sm underline">Subir foto<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => e.target.files?.[0] && subir(e.target.files[0])} /></label>}
-        {!x.nuevo && !x.con_pin && <span className="text-sm text-rojo">Sin PIN: aún no puede entrar</span>}
-        {x.foto_key && <img src={`${API}/api/archivos/${x.foto_key}`} alt="" className="h-10 w-10 rounded-full object-cover" />}
-      </div>
-    </form>
-  );
-}
-
-function FilaServicio({ inicial, onGuardar }: { inicial: any; onGuardar: (d: any) => void }) {
-  const [x, setX] = useState(inicial);
-  return (
-    <form className="rounded-xl border border-borde p-3" onSubmit={(e) => { e.preventDefault(); onGuardar({ ...x, activo: !!x.activo }); if (x.nuevo) setX(inicial); }}>
-      <div className="grid grid-cols-[1fr_7rem] gap-2">
-        <input aria-label="Nombre del servicio" className="campo" placeholder={x.nuevo ? 'Nuevo servicio' : 'Nombre'} value={x.nombre} onChange={(e) => setX({ ...x, nombre: e.target.value })} />
-        <input aria-label="Precio en lempiras" className="campo" type="number" min={0} placeholder="L" value={x.precio_l} onChange={(e) => setX({ ...x, precio_l: e.target.value })} />
-        <input aria-label="Descripción" className="campo col-span-2" placeholder="Descripción corta" value={x.descripcion} onChange={(e) => setX({ ...x, descripcion: e.target.value })} />
-      </div>
-      <div className="mt-2 flex items-center gap-4">
-        <button className="btn btn-linea !min-h-11 !w-auto !text-lg" disabled={!x.nombre.trim() || x.precio_l === ''}>{x.nuevo ? 'Agregar' : 'Guardar'}</button>
-        {!x.nuevo && <label className="flex items-center gap-2"><input type="checkbox" className="h-5 w-5" checked={!!x.activo} onChange={(e) => setX({ ...x, activo: e.target.checked ? 1 : 0 })} />Visible</label>}
-      </div>
-    </form>
-  );
-}
-
 function Clientes() {
   const { datos } = useDatos<any>('/clientes');
   async function bajar() {
@@ -413,6 +288,7 @@ function Actividad() {
 
 function Cartel({ barberoId }: { barberoId?: number | null }) {
   const url = urlPublica();
+  const { datos } = useDatos<any>('/config');
   const [qr, setQr] = useState('');
   useEffect(() => { QRCode.toDataURL(url, { width: 900, margin: 1, errorCorrectionLevel: 'M' }).then(setQr); }, [url]);
   return (
@@ -420,15 +296,13 @@ function Cartel({ barberoId }: { barberoId?: number | null }) {
       <button className="btn btn-rojo no-imprimir" onClick={() => window.print()}>Imprimir cartel</button>
       <p className="no-imprimir mt-2 text-center text-sm text-tenue">El QR lleva a {url}</p>
       <div className="mx-auto mt-4 max-w-md rounded-3xl bg-white p-6 text-center text-black">
-        <Emblema className="mx-auto w-56" />
-        <div className="marca text-6xl">OLIMPO</div>
-        <div className="marca text-lg tracking-[.3em]">— BARBER CLUB —</div>
+        <Logo grande />
         <Poste className="mx-auto mt-3 !h-3 w-3/4" />
         <div className="titulo mt-5 text-5xl">Agenda tu cita</div>
         <div className="mt-1 text-xl">Escanea y elige tu hora</div>
         {qr && <img src={qr} alt={`Código QR hacia ${url}`} className="mx-auto mt-4 w-4/5" />}
         <div className="mt-3 text-lg font-semibold">Sin descargar nada · sin crear cuenta</div>
-        <div className="mt-1 text-sm">Llega puntual: 10 minutos de tolerancia</div>
+        {datos && <div className="mt-1 text-sm">Llega puntual: {datos.barberia.tolerancia_min} minutos de tolerancia</div>}
       </div>
       <div className="no-imprimir mt-10 border-t border-borde pt-6"><CompartirQR barberoId={barberoId} /></div>
     </div>

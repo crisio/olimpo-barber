@@ -26,8 +26,12 @@ function nuevo() {
   return {
     dia: hoy, sig: 20,
     barberia: { id: 1, nombre: 'Olimpo Barber Club', direccion: 'Quimistán, Santa Bárbara', whatsapp_numero: '50499990000', horario, almuerzo: ['12:00', '13:00'] as [string, string] | null,
-      duracion_cita_min: 60, tolerancia_min: 10, recargo_l: 50, dias_anticipacion: 14, anticipacion_min: 60, agenda_abierta: 1, logo_key: null },
-    barberos: [{ id: 1, nombre: 'Edison', apodo: null as string | null, foto_key: null, orden: 1, activo: 1, con_pin: 1, es_admin: 1, pin_digitos: 6 }, { id: 2, nombre: 'Kevin Mejía', apodo: 'Kevin', foto_key: null, orden: 2, activo: 1, con_pin: 1, es_admin: 0, pin_digitos: 6 }],
+      duracion_cita_min: 60, tolerancia_min: 10, recargo_l: 50, dias_anticipacion: 14, anticipacion_min: 60, agenda_abierta: 1, logo_key: null as string | null,
+      marca_titulo: 'OLIMPO', marca_subtitulo: 'BARBER CLUB', logo_con_texto: 1, descripcion: '', mapa_url: null as string | null,
+      instagram: null as string | null, facebook: null as string | null, tiktok: null as string | null },
+    barberos: [{ id: 1, nombre: 'Edison', apodo: null as string | null, foto_key: null as string | null, orden: 1, activo: 1, con_pin: 1, es_admin: 1, pin_digitos: 6, atiende: 1, debe_cambiar_pin: 0, telefono: null as string | null },
+      { id: 2, nombre: 'Kevin Mejía', apodo: 'Kevin', foto_key: null, orden: 2, activo: 1, con_pin: 1, es_admin: 0, pin_digitos: 6, atiende: 1, debe_cambiar_pin: 0, telefono: null }],
+    usuarios: [{ id: 1, email: 'dueno@ejemplo.com', nombre: 'Dueño', creado_en: '2026-01-01', passkeys: 0, principal: true }] as any[],
     servicios: S,
     citas: [
       cita(1, 'DEMA2', 1, h(-2), 'terminada', 'Marlon Pineda', [1], null, { llego_en: sumarMin(h(-2), 3) }),
@@ -46,10 +50,10 @@ function nuevo() {
 type Estado = ReturnType<typeof nuevo>;
 let E: Estado;
 function cargar() {
-  try { const g = JSON.parse(localStorage.getItem('ty_demo') ?? 'null'); if (g?.dia === ahora().slice(0, 10)) { E = g; return; } } catch { /* se regenera */ }
+  try { const g = JSON.parse(localStorage.getItem('ty_demo2') ?? 'null'); if (g?.dia === ahora().slice(0, 10)) { E = g; return; } } catch { /* se regenera */ }
   E = nuevo();
 }
-const guardar = () => { try { localStorage.setItem('ty_demo', JSON.stringify(E)); } catch { /* sin almacenamiento */ } };
+const guardar = () => { try { localStorage.setItem('ty_demo2', JSON.stringify(E)); } catch { /* sin almacenamiento */ } };
 
 const VIVOS = ['agendada', 'en_atencion', 'terminada'];
 function disponibilidad(fecha: string, sinAnticipacion = false) {
@@ -101,8 +105,11 @@ function responder(rutaCompleta: string, d: any, metodo: string, token: string |
   if (ruta === '/barberia' && metodo === 'GET') {
     let proxima: string | null = null;
     for (let i = 0; i <= 7 && !proxima; i++) proxima = disponibilidad(sumarDias(hoy, i)).find((h) => h.barberos.length)?.inicio ?? null;
-    return ok({ barberia: E.barberia, barberos: E.barberos.filter((b) => b.activo), servicios: E.servicios.filter((s) => s.activo), proxima_libre: E.barberia.agenda_abierta ? proxima : null, ahora: a });
+    const orden = (x: any, y: any) => x.orden - y.orden;
+    return ok({ barberia: E.barberia, barberos: E.barberos.filter((b) => b.activo && b.atiende !== 0).sort(orden), personal: E.barberos.filter((b) => b.activo && b.con_pin).sort(orden),
+      servicios: E.servicios.filter((s) => s.activo).sort(orden), proxima_libre: E.barberia.agenda_abierta ? proxima : null, ahora: a, version: 2 });
   }
+  if (ruta === '/marca') { const b = E.barberia; return ok({ nombre: b.nombre, marca_titulo: b.marca_titulo, marca_subtitulo: b.marca_subtitulo, logo_key: b.logo_key, logo_con_texto: b.logo_con_texto, version: 2 }); }
   if (ruta === '/disponibilidad') return ok({ fecha: p.get('fecha') ?? hoy, horas: disponibilidad(p.get('fecha') ?? hoy) });
   if (ruta === '/pantalla') return ok({ barberia: E.barberia, ahora: a, citas: E.citas.filter((c) => c.inicio.startsWith(hoy) && ['agendada', 'en_atencion'].includes(c.estado)).sort((x, y) => x.inicio.localeCompare(y.inicio)).map((c) => ({ inicio: c.inicio, estado: c.estado, nombre_publico: c.nombre_publico, barbero: nombreBarbero(c.barbero_id).nombre })) });
 
@@ -171,15 +178,63 @@ function responder(rutaCompleta: string, d: any, metodo: string, token: string |
     return ok({ ok: true });
   }
   if (rol !== 'dueno') return mal('No tienes permiso para esto.', 403);
-  if (ruta === '/config') return ok({ barberia: E.barberia, barberos: E.barberos, servicios: E.servicios });
-  if (ruta === '/barberia' && metodo === 'PUT') { E.barberia = { ...E.barberia, ...d, whatsapp_numero: tel(d.whatsapp_numero) ?? E.barberia.whatsapp_numero, agenda_abierta: d.agenda_abierta ? 1 : 0 }; for (const k of ['duracion_cita_min', 'tolerancia_min', 'recargo_l', 'dias_anticipacion', 'anticipacion_min'] as const) (E.barberia as any)[k] = Number((E.barberia as any)[k]) || 0; return ok({ ok: true }); }
+  if (ruta === '/config') return ok({ barberia: E.barberia, barberos: [...E.barberos].sort((a, b) => a.orden - b.orden), servicios: [...E.servicios].sort((a, b) => a.orden - b.orden), version: 2 });
+  if (ruta === '/archivos') {
+    const barbero = Number(p.get('barbero') ?? d.barbero) || null;
+    const clave = metodo === 'DELETE' ? null : String(d.imagen ?? '');
+    if (barbero) { const x = E.barberos.find((b) => b.id === barbero); if (!x) return mal('Esa persona ya no existe.', 404); x.foto_key = clave; }
+    else E.barberia.logo_key = clave;
+    return ok({ clave });
+  }
+  if (ruta === '/orden') {
+    const lista = (d.tipo === 'barberos' ? E.barberos : E.servicios) as any[];
+    (d.ids as number[]).forEach((id, i) => { const x = lista.find((y) => y.id === id); if (x) x.orden = i + 1; });
+    return ok({ ok: true });
+  }
+  if ((m = ruta.match(/^\/(barberos|servicios)\/(\d+)$/)) && metodo === 'DELETE') {
+    const id = Number(m[2]);
+    if (m[1] === 'barberos') {
+      const n = E.citas.filter((c) => c.barbero_id === id).length;
+      if (n) return mal(`Tiene ${n} cita${n === 1 ? '' : 's'} en el historial. Desactívalo para que ya no aparezca ni pueda entrar.`);
+      E.barberos = E.barberos.filter((b) => b.id !== id);
+    } else {
+      if (E.servicios.filter((x) => x.activo && x.id !== id).length === 0) return mal('Debe quedar al menos un servicio visible.');
+      E.servicios = E.servicios.filter((x) => x.id !== id);
+    }
+    return ok({ ok: true });
+  }
+  if (ruta === '/usuarios' && metodo === 'GET') return ok({ usuarios: E.usuarios.map((u) => ({ ...u, yo: token === 'demo-dueno' && u.id === 1 })) });
+  if (ruta === '/usuarios') {
+    const email = String(d.email ?? '').trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(email)) return mal('Escribe un correo válido.', 400);
+    const ya = E.usuarios.find((u) => u.email === email);
+    if (ya) ya.nombre = d.nombre || null; else E.usuarios.push({ id: E.sig++, email, nombre: d.nombre || null, creado_en: hoy, passkeys: 0, principal: false });
+    return ok({ ok: true, invitado: false });
+  }
+  if ((m = ruta.match(/^\/usuarios\/(\d+)$/))) {
+    const u = E.usuarios.find((x) => x.id === Number(m![1]));
+    if (!u) return mal('Ese usuario ya no existe.', 404);
+    if (u.principal) return mal('Este es el correo principal del dueño y no se puede quitar desde aquí.');
+    E.usuarios = E.usuarios.filter((x) => x !== u);
+    return ok({ ok: true });
+  }
+  if (ruta === '/barberia' && metodo === 'PUT') {
+    if ('nombre' in d && String(d.nombre).trim().length < 2) return mal('Escribe el nombre del negocio.', 400);
+    const red = (v: unknown) => (v ? String(v).trim().replace(/^@/, '') || null : null);
+    E.barberia = { ...E.barberia, ...d, id: 1, whatsapp_numero: d.whatsapp_numero ? tel(String(d.whatsapp_numero).replace(/^504(?=\d{8}$)/, '')) : null, agenda_abierta: d.agenda_abierta ? 1 : 0,
+      instagram: red(d.instagram ?? E.barberia.instagram), tiktok: red(d.tiktok ?? E.barberia.tiktok), facebook: red(d.facebook ?? E.barberia.facebook), mapa_url: d.mapa_url ?? E.barberia.mapa_url ?? null }; for (const k of ['duracion_cita_min', 'tolerancia_min', 'recargo_l', 'dias_anticipacion', 'anticipacion_min'] as const) (E.barberia as any)[k] = Number((E.barberia as any)[k]) || 0; return ok({ ok: true }); }
   if (ruta === '/barberos' || ruta === '/servicios') {
     const lista = (ruta === '/barberos' ? E.barberos : E.servicios) as any[];
-    const { pin, nuevo: _n, ...resto } = d;
-    const fila = { ...resto, activo: d.activo === false ? 0 : 1, ...(ruta === '/servicios' ? { precio_l: Number(d.precio_l) } : { con_pin: pin || d.con_pin ? 1 : 0, es_admin: d.es_admin ? 1 : 0, pin_digitos: 6 }) };
+    const { pin, pin_temporal, nuevo: _n, ...resto } = d;
+    if (String(d.nombre ?? '').trim().length < 2) return mal('Escribe el nombre.', 400);
+    const fila = { ...resto, activo: d.activo === false ? 0 : 1, ...(ruta === '/servicios' ? { precio_l: Number(d.precio_l) } : {
+      con_pin: pin || d.con_pin ? 1 : 0, es_admin: d.es_admin ? 1 : 0, atiende: d.atiende === false ? 0 : 1, pin_digitos: 6,
+      telefono: tel(d.telefono), ...(pin ? { debe_cambiar_pin: pin_temporal ? 1 : 0 } : {}) }) };
     const i = lista.findIndex((x) => x.id === d.id);
-    if (i >= 0) lista[i] = { ...lista[i], ...fila }; else lista.push({ ...fila, id: E.sig++, orden: lista.length + 1 });
-    return ok({ ok: true });
+    if (i >= 0) { lista[i] = { ...lista[i], ...fila }; return ok({ ok: true, id: d.id }); }
+    const id = E.sig++;
+    lista.push({ ...fila, id, orden: lista.length + 1 });
+    return ok({ ok: true, id });
   }
   if (ruta === '/metricas') {
     const rango = p.get('rango') ?? 'hoy', desde = rango === 'mes' ? sumarDias(hoy, -29) : rango === 'semana' ? sumarDias(hoy, -6) : hoy;

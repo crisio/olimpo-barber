@@ -1,5 +1,5 @@
 import { buildPushPayload } from '@block65/webcrypto-web-push';
-import { Env, utc, fechaTexto } from './lib';
+import { Env, utc, fechaTexto, nombreNegocio } from './lib';
 import { enviarWA } from './whatsapp';
 
 const b64url = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -55,7 +55,7 @@ export async function notificarPersonal(env: Env, codigo: string, tipo: keyof ty
   const subs = (await env.DB.prepare('SELECT endpoint, p256dh, auth FROM suscripciones_push WHERE barbero_id = ? OR admin = 1').bind(c.barbero_id).all<any>()).results;
   await enviarPush(env, subs, { titulo: TITULOS[tipo], cuerpo, url: 'barbero', etiqueta: `cita-${c.codigo}` });
   if (c.tel_barbero) {
-    await enviarWA(env, c.tel_barbero, `${TITULOS[tipo]} en Olimpo Barber Club\n${cuerpo}\nCódigo ${c.codigo}`, {
+    await enviarWA(env, c.tel_barbero, `${TITULOS[tipo]} en ${await nombreNegocio(env)}\n${cuerpo}\nCódigo ${c.codigo}`, {
       cita_id: c.id, tipo: `personal_${tipo}`,
       plantilla: env.WA_PLANTILLA_PERSONAL ? { nombre: env.WA_PLANTILLA_PERSONAL, parametros: [TITULOS[tipo], cuerpo, c.codigo] } : undefined,
     });

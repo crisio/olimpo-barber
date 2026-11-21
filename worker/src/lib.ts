@@ -109,3 +109,8 @@ export async function disponibilidad(env: Env, fecha: string, opts: { sinAnticip
   }
   return horas;
 }
+
+/** Nombre del negocio tal como lo puso el dueño en Configuración. */
+export async function nombreNegocio(env: Env) {
+  return (await env.DB.prepare('SELECT nombre FROM barberia WHERE id = 1').first<any>())?.nombre ?? 'la barbería';
+}
