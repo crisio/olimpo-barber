@@ -134,9 +134,12 @@ En **Panel → Configuración** el dueño, o cualquier administrador, cambia:
 | Logo y nombre | Sube el logo desde la galería (se achica en el teléfono antes de subir), lo quita para volver al emblema original, nombre del negocio y textos del logo, con vista previa. Se aplica en toda la app, el cartel, el QR para estados, la pestaña del navegador y los mensajes |
 | Datos del negocio | Bienvenida, dirección, enlace de Google Maps, WhatsApp, Instagram, Facebook y TikTok. Aparecen en la página de inicio |
 | Precios y servicios | Precio, nombre y descripción de cada servicio, agregar, esconder, ordenar y eliminar, y el recargo por recuperar. Las citas ya agendadas conservan su precio |
+| Cuentas para transferencias | Cuentas de cualquier banco o billetera (tipo, moneda, número, a nombre de quién, nota). Los clientes las ven en el inicio y en su cita con botones para copiar el número, abrir la app de su banco y enviar el comprobante por WhatsApp |
 | Horario y reglas | Días y horas, almuerzo, duración de la cita, tolerancia y anticipación |
 | Equipo | Agregar personas, nombre, apodo, foto, WhatsApp, PIN (temporal o fijo), si atiende clientes, si es administrador, desactivar y eliminar (solo si nunca tuvo citas) |
 | Usuarios con correo | Dar o quitar acceso al panel a otros correos. Si Resend está configurado, les llega un correo con el enlace. Los correos de `OWNER_EMAIL` no se pueden quitar desde aquí |
+
+Una página web no puede abrir la app de un banco directo en la pantalla de transferir, porque los bancos no publican ese enlace. El botón «Abrir la app de mi banco» lleva a la ficha de la app en Play Store o App Store, que muestra **Abrir** si ya está instalada; en computadora abre el sitio del banco. Los identificadores están en `web/src/bancos.ts`.
 
 Un administrador no puede quitarse su propio acceso ni borrarse a sí mismo. Si la API publicada es anterior a esta pantalla, Configuración lo avisa y deja guardar solo lo que esa API entiende.
 

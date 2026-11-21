@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { L, cuandoTexto, diaSemana, hora12, memoria, sumarDias } from '../api';
 import { Aviso, Carta, Cargando, Logo, Pagina, Poste, useDatos } from '../ui';
+import Transferencia from '../Transferencia';
 
 export function estadoHorario(horario: Record<string, [string, string] | null>, ahora: string) {
   const hoy = ahora.slice(0, 10), hm = ahora.slice(11);
@@ -80,6 +81,8 @@ export default function Inicio() {
           </div>
         ))}
       </div>
+
+      <Transferencia b={b} />
 
       <h2 className="titulo mt-8 text-3xl">Cómo funciona</h2>
       <ol className="mt-3 grid gap-2 text-base">
