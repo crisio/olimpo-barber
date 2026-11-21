@@ -6,14 +6,17 @@ import { DEMO, L, api, hora12 } from './api';
 import { quitarImagen, subirImagen } from './imagen';
 import { aMarca, refrescarMarca, urlArchivo } from './marca';
 import { Aviso, Cargando, Carta, Confirmar, Interruptor, Logo, useDatos } from './ui';
+import { BANCOS, Cuenta, MONEDAS, OTRO, TIPOS, bancoDe } from './bancos';
+import { SelloBanco } from './Transferencia';
 
-type Seccion = 'marca' | 'negocio' | 'precios' | 'horario' | 'equipo' | 'usuarios';
+type Seccion = 'marca' | 'negocio' | 'precios' | 'cuentas' | 'horario' | 'equipo' | 'usuarios';
 type Mensaje = { tono: 'verde' | 'rojo'; texto: string } | null;
 type Ctx = {
-  datos: any; b: any; nueva: boolean; yo: any;
+  datos: any; b: any; nueva: boolean; conCuentas: boolean; yo: any;
   /** Corre una acción, avisa el resultado y recarga la configuración. Devuelve lo que devolvió la acción, o null si falló. */
   correr: <T>(fn: () => Promise<T>, ok?: string | ((r: T) => string)) => Promise<T | null>;
-  guardarBarberia: (cambios: object, ok?: string) => Promise<unknown>;
+  /** Devuelve true si se guardó. */
+  guardarBarberia: (cambios: object, ok?: string) => Promise<true | null>;
   avisar: (m: Mensaje) => void;
   volver: () => void;
 };
@@ -37,6 +40,7 @@ export default function Configuracion({ yo }: { yo: any }) {
   const b = datos.barberia;
   // Una API publicada antes de esta pantalla no guarda logo con texto, redes, usuarios ni orden
   const nueva = DEMO || (datos.version ?? 1) >= 2;
+  const conCuentas = DEMO || (datos.version ?? 1) >= 3; // cuentas para transferencias
   const correr: Ctx['correr'] = async (fn, ok = 'Guardado.') => {
     try {
       const r = await fn();
@@ -50,8 +54,8 @@ export default function Configuracion({ yo }: { yo: any }) {
   };
   // Se envía la barbería completa con los cambios: funciona igual con la API nueva y con la anterior
   const guardarBarberia = (cambios: object, ok?: string) =>
-    correr(async () => { await api('/barberia', { ...b, ...cambios }, 'PUT'); await refrescarMarca(); }, ok);
-  const ctx: Ctx = { datos, b, nueva, yo, correr, guardarBarberia, avisar: setMsj, volver: () => setSec(null) };
+    correr(async () => { await api('/barberia', { ...b, ...cambios }, 'PUT'); await refrescarMarca(); return true as const; }, ok);
+  const ctx: Ctx = { datos, b, nueva, conCuentas, yo, correr, guardarBarberia, avisar: setMsj, volver: () => setSec(null) };
 
   const abiertos = ORDEN_DIAS.filter((i) => b.horario[i]);
   const servicios = datos.servicios.filter((s: any) => s.activo);
@@ -62,10 +66,11 @@ export default function Configuracion({ yo }: { yo: any }) {
           <div className={`rounded-xl border px-4 py-3 font-semibold shadow-xl ${msj.tono === 'verde' ? 'border-verde bg-[#0f2a20]' : 'border-rojo bg-[#2d1214]'}`}>{msj.texto}</div>
         </div>
       )}
-      {!nueva && (
+      {!conCuentas && (
         <div className="mb-4"><Aviso tono="azul">
-          <b>Falta publicar la API nueva.</b> Mientras tanto se guardan precios, servicios, horario, equipo, nombre, dirección y logo.
-          Los textos del logo, las redes, el orden y los usuarios con correo se activan al publicarla.
+          <b>Falta publicar la API nueva.</b>{' '}
+          {nueva ? 'Las cuentas para transferencias se activan al publicarla.'
+            : 'Mientras tanto se guardan precios, servicios, horario, equipo, nombre, dirección y logo. Los textos del logo, las redes, el orden, los usuarios con correo y las cuentas para transferencias se activan al publicarla.'}
         </Aviso></div>
       )}
       {sec === null && (
@@ -81,6 +86,7 @@ export default function Configuracion({ yo }: { yo: any }) {
             <Fila icono="imagen" titulo="Logo y nombre" resumen={b.nombre} onClick={() => setSec('marca')} />
             <Fila icono="tienda" titulo="Datos del negocio" resumen={[b.direccion, b.whatsapp_numero && 'WhatsApp', b.instagram && 'Instagram', b.facebook && 'Facebook', b.tiktok && 'TikTok'].filter(Boolean).join(' · ') || 'Dirección, WhatsApp y redes'} onClick={() => setSec('negocio')} />
             <Fila icono="precio" titulo="Precios y servicios" resumen={servicios.map((s: any) => `${s.nombre} ${L(s.precio_l)}`).join(' · ') || 'Sin servicios visibles'} onClick={() => setSec('precios')} />
+            <Fila icono="banco" titulo="Cuentas para transferencias" resumen={!conCuentas ? 'Se activa al publicar la API nueva' : (b.cuentas ?? []).length ? (b.cuentas as Cuenta[]).map((c) => bancoDe(c.banco, c.banco_nombre).corto).join(' · ') : 'Agrega tus cuentas de banco'} onClick={() => setSec('cuentas')} deshabilitada={!conCuentas} />
             <Fila icono="reloj" titulo="Horario y reglas de citas" resumen={`${abiertos.length} día${abiertos.length === 1 ? '' : 's'} a la semana · citas de ${b.duracion_cita_min} min`} onClick={() => setSec('horario')} />
             <Fila icono="equipo" titulo="Equipo" resumen={`${datos.barberos.filter((x: any) => x.activo).length} activos · barberos y administradores`} onClick={() => setSec('equipo')} />
             <Fila icono="correo" titulo="Usuarios con correo" resumen={nueva ? 'Quién entra al panel con su correo' : 'Se activa al publicar la API nueva'} onClick={() => setSec('usuarios')} deshabilitada={!nueva} />
@@ -91,6 +97,7 @@ export default function Configuracion({ yo }: { yo: any }) {
       {sec === 'marca' && <SecMarca ctx={ctx} />}
       {sec === 'negocio' && <SecNegocio ctx={ctx} />}
       {sec === 'precios' && <SecPrecios ctx={ctx} />}
+      {sec === 'cuentas' && <SecCuentas ctx={ctx} />}
       {sec === 'horario' && <SecHorario ctx={ctx} />}
       {sec === 'equipo' && <SecEquipo ctx={ctx} />}
       {sec === 'usuarios' && <SecUsuarios ctx={ctx} />}
@@ -106,6 +113,7 @@ const ICONOS: Record<string, ReactNode> = {
   reloj: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   equipo: <><circle cx="9" cy="8" r="3" /><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /><circle cx="17.5" cy="9" r="2.5" /><path d="M16 14.6c2.8.2 5 2 5 4.9" /></>,
   correo: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></>,
+  banco: <><path d="M3 10l9-6 9 6" /><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8" /><path d="M3 20h18" /></>,
 };
 const Icono = ({ nombre, className = 'h-6 w-6' }: { nombre: string; className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONOS[nombre]}</svg>
@@ -634,6 +642,144 @@ function SecUsuarios({ ctx }: { ctx: Ctx }) {
       <p className="text-sm text-tenue">Para el personal que entra con PIN, ve a <b>Equipo</b>.</p>
       {quitar && <Confirmar titulo="¿Quitar acceso?" texto={`${quitar.email} ya no podrá entrar al panel y se cerrarán sus sesiones.`} si="Sí, quitar"
         onNo={() => setQuitar(null)} onSi={async () => { const u = quitar; setQuitar(null); if (await ctx.correr(() => api(`/usuarios/${u.id}`, undefined, 'DELETE'), 'Acceso quitado.')) recargar(); }} />}
+    </Sub>
+  );
+}
+
+// ---------- Cuentas para transferencias ----------
+function Opciones<T extends string>({ valor, opciones, onCambio, etiqueta }: { valor: T; opciones: [T, string][]; onCambio: (v: T) => void; etiqueta: string }) {
+  return (
+    <div role="radiogroup" aria-label={etiqueta} className="grid gap-2" style={{ gridTemplateColumns: `repeat(${opciones.length}, minmax(0, 1fr))` }}>
+      {opciones.map(([v, t]) => (
+        <button key={v} type="button" role="radio" aria-checked={valor === v} onClick={() => onCambio(v)}
+          className={`min-h-12 rounded-xl border-2 px-2 text-base font-semibold ${valor === v ? 'border-azul bg-azul/20' : 'border-borde'}`}>{t}</button>
+      ))}
+    </div>
+  );
+}
+
+const idNuevo = () => Math.random().toString(36).slice(2, 10).padEnd(6, '0');
+
+function SecCuentas({ ctx }: { ctx: Ctx }) {
+  const cuentas: Cuenta[] = Array.isArray(ctx.b.cuentas) ? ctx.b.cuentas : [];
+  const [editando, setEditando] = useState<Cuenta | 'nueva' | null>(null);
+  const guardarLista = (lista: Cuenta[], ok: string) => ctx.guardarBarberia({ cuentas: lista }, ok);
+  if (editando) {
+    const nueva = editando === 'nueva';
+    return (
+      <EditarCuenta c={nueva ? null : editando} titular={ctx.b.nombre} onVolver={() => setEditando(null)}
+        onGuardar={async (c) => {
+          const lista = nueva ? [...cuentas, c] : cuentas.map((x) => (x.id === c.id ? c : x));
+          if (await guardarLista(lista, nueva ? 'Cuenta agregada. Ya la ven tus clientes.' : 'Cuenta guardada.')) setEditando(null);
+        }}
+        onBorrar={nueva ? undefined : async () => {
+          if (await guardarLista(cuentas.filter((x) => x.id !== (editando as Cuenta).id), 'Cuenta eliminada.')) setEditando(null);
+        }} />
+    );
+  }
+  const mover = (i: number, d: number) => {
+    const l = [...cuentas];
+    [l[i], l[i + d]] = [l[i + d], l[i]];
+    guardarLista(l, 'Orden guardado.');
+  };
+  return (
+    <Sub titulo="Cuentas para transferencias" volver={ctx.volver}>
+      <p className="text-tenue">Tus clientes las ven en la página de inicio y en su cita, con un botón para <b className="text-crema">copiar el número</b> y otro para <b className="text-crema">abrir la app de su banco</b>. Puedes poner cuentas de cualquier banco o billetera.</p>
+      {cuentas.length > 0 && (
+        <ul className="divide-y divide-borde overflow-hidden rounded-2xl border border-borde bg-carta">
+          {cuentas.map((c, i) => {
+            const banco = bancoDe(c.banco, c.banco_nombre);
+            return (
+              <li key={c.id} className="flex items-center">
+                <button className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left active:bg-borde/40" onClick={() => setEditando(c)}>
+                  <SelloBanco banco={banco} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-lg font-semibold">{banco.nombre}</span>
+                    <span className="block truncate tabular-nums">{c.numero}</span>
+                    <span className="mt-1 flex flex-wrap gap-1">
+                      <Insignia>{TIPOS[c.tipo]}</Insignia><Insignia>{MONEDAS[c.moneda]}</Insignia>
+                      {!c.activa && <Insignia tono="rojo">Oculta</Insignia>}
+                    </span>
+                  </span>
+                  <span className="text-tenue"><Flecha /></span>
+                </button>
+                {cuentas.length > 1 && (
+                  <span className="flex flex-col gap-1 pr-2">
+                    <button className="h-9 w-9 rounded-lg border border-borde disabled:opacity-20" disabled={i === 0} aria-label={`Subir cuenta de ${banco.nombre}`} onClick={() => mover(i, -1)}>↑</button>
+                    <button className="h-9 w-9 rounded-lg border border-borde disabled:opacity-20" disabled={i === cuentas.length - 1} aria-label={`Bajar cuenta de ${banco.nombre}`} onClick={() => mover(i, 1)}>↓</button>
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <button className="btn btn-azul" disabled={cuentas.length >= 12} onClick={() => setEditando('nueva')}>+ Agregar cuenta</button>
+      {cuentas.length > 0 && <p className="text-center text-sm text-tenue"><Link className="underline" to="/">Ver cómo las ven tus clientes</Link></p>}
+    </Sub>
+  );
+}
+
+function EditarCuenta({ c, titular, onVolver, onGuardar, onBorrar }: {
+  c: Cuenta | null; titular: string; onVolver: () => void; onGuardar: (c: Cuenta) => Promise<void>; onBorrar?: () => Promise<void>;
+}) {
+  const inicial: Cuenta = c ?? { id: idNuevo(), banco: 'atlantida', banco_nombre: '', tipo: 'ahorro', moneda: 'HNL', numero: '', titular, nota: '', activa: true };
+  const [f, setF] = useState<Cuenta>(inicial);
+  const [borrar, setBorrar] = useState(false);
+  const banco = bancoDe(f.banco, f.banco_nombre);
+  const digitos = (f.numero.match(/\d/g) ?? []).length;
+  const valido = digitos >= 4 && (f.banco !== OTRO || f.banco_nombre.trim().length >= 2);
+  const elegirBanco = (clave: string) => {
+    const b = BANCOS.find((x) => x.clave === clave);
+    // Una billetera móvil (Tigo Money y similares) es su propio tipo de cuenta
+    setF({ ...f, banco: clave, tipo: b?.billetera ? 'billetera' : f.tipo === 'billetera' ? 'ahorro' : f.tipo });
+  };
+  return (
+    <Sub titulo={c ? banco.nombre : 'Nueva cuenta'} volver={onVolver} atras="Cuentas"
+      pie={<button className="btn btn-rojo" disabled={!valido || igual(f, inicial)} onClick={() => onGuardar({ ...f, numero: f.numero.trim(), banco_nombre: f.banco === OTRO ? f.banco_nombre.trim() : '' })}>{c ? 'Guardar' : 'Agregar cuenta'}</button>}>
+      <Carta>
+        <div className="grid gap-4">
+          <Campo etiqueta="Banco o billetera">
+            <div className="flex items-center gap-2">
+              <SelloBanco banco={banco} />
+              <select className="campo" value={f.banco} onChange={(e) => elegirBanco(e.target.value)}>
+                <optgroup label="Bancos">{BANCOS.filter((b) => !b.billetera).map((b) => <option key={b.clave} value={b.clave}>{b.nombre}</option>)}</optgroup>
+                {BANCOS.some((b) => b.billetera) && <optgroup label="Billeteras móviles">{BANCOS.filter((b) => b.billetera).map((b) => <option key={b.clave} value={b.clave}>{b.nombre}</option>)}</optgroup>}
+                <option value={OTRO}>Otro banco…</option>
+              </select>
+            </div>
+          </Campo>
+          {f.banco === OTRO && (
+            <Campo etiqueta="Nombre del banco"><input className="campo" maxLength={40} value={f.banco_nombre} onChange={(e) => setF({ ...f, banco_nombre: e.target.value })} placeholder="Ej. Banco Cuscatlán" /></Campo>
+          )}
+          <div className="text-sm text-tenue">Tipo de cuenta
+            <div className="mt-1"><Opciones etiqueta="Tipo de cuenta" valor={f.tipo} onCambio={(v) => setF({ ...f, tipo: v })}
+              opciones={[['ahorro', 'Ahorro'], ['cheques', 'Cheques'], ['billetera', 'Billetera']]} /></div>
+          </div>
+          <div className="text-sm text-tenue">Moneda
+            <div className="mt-1"><Opciones etiqueta="Moneda" valor={f.moneda} onCambio={(v) => setF({ ...f, moneda: v })} opciones={[['HNL', 'Lempiras'], ['USD', 'Dólares']]} /></div>
+          </div>
+        </div>
+      </Carta>
+      <Carta>
+        <div className="grid gap-4">
+          <Campo etiqueta={f.tipo === 'billetera' ? 'Número de la billetera (celular)' : 'Número de cuenta'}>
+            <input className="campo titulo !text-3xl tracking-wider" inputMode="numeric" autoComplete="off" maxLength={40} value={f.numero}
+              onChange={(e) => setF({ ...f, numero: e.target.value.replace(/[^\d -]/g, '') })} placeholder="0000000000" />
+          </Campo>
+          {f.numero && digitos < 4 && <p className="-mt-2 text-sm text-rojo">Escribe el número completo.</p>}
+          <Campo etiqueta="A nombre de" ayuda="Así aparece el dueño de la cuenta; el cliente lo ve para confirmar antes de enviar.">
+            <input className="campo" maxLength={60} value={f.titular} onChange={(e) => setF({ ...f, titular: e.target.value })} placeholder={titular} />
+          </Campo>
+          <Campo etiqueta="Nota para el cliente (opcional)">
+            <input className="campo" maxLength={140} value={f.nota} onChange={(e) => setF({ ...f, nota: e.target.value })} placeholder="Ej. Pon tu nombre en la descripción" />
+          </Campo>
+          <Interruptor activo={f.activa} onCambio={(v) => setF({ ...f, activa: v })} etiqueta="Visible para clientes" detalle="Apágala para esconderla sin borrarla." />
+        </div>
+      </Carta>
+      {onBorrar && <button className="btn btn-linea !text-lg !text-rojo" onClick={() => setBorrar(true)}>Eliminar esta cuenta</button>}
+      {borrar && <Confirmar titulo="¿Eliminar esta cuenta?" texto={`${banco.nombre} · ${f.numero}. Tus clientes ya no la verán.`} si="Sí, eliminar"
+        onNo={() => setBorrar(false)} onSi={() => { setBorrar(false); onBorrar?.(); }} />}
     </Sub>
   );
 }

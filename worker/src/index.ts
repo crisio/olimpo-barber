@@ -29,7 +29,7 @@ app.onError((e, c) => {
 });
 
 /** Sube cuando la API gana funciones que la web necesita saber si están publicadas. */
-const VERSION_API = 2;
+const VERSION_API = 3; // 2: configuración desde el teléfono · 3: cuentas para transferencias
 const escaparHtml = (t: string) => t.replace(/[&<>"']/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[x]!);
 
 const err = (c: C, mensaje: string, estado: 400 | 401 | 403 | 404 | 409 | 429 = 400, extra: object = {}) =>
@@ -84,8 +84,17 @@ async function datosBarberia(env: Env) {
     env.DB.prepare('SELECT id, nombre, apodo, foto_key, orden, activo, (pin_hash IS NOT NULL) AS con_pin, es_admin, pin_digitos, atiende, debe_cambiar_pin, telefono FROM barberos ORDER BY orden, id').all<any>(),
     env.DB.prepare('SELECT * FROM servicios ORDER BY orden, id').all<any>(),
   ]);
-  return { barberia: { ...b, horario: JSON.parse(b.horario), almuerzo: b.almuerzo ? JSON.parse(b.almuerzo) : null }, barberos: barberos.results, servicios: servicios.results };
+  return {
+    barberia: { ...b, horario: JSON.parse(b.horario), almuerzo: b.almuerzo ? JSON.parse(b.almuerzo) : null, cuentas: leerCuentas(b.cuentas) },
+    barberos: barberos.results, servicios: servicios.results,
+  };
 }
+
+type Cuenta = { id: string; banco: string; banco_nombre: string; tipo: string; moneda: string; numero: string; titular: string; nota: string; activa: boolean };
+function leerCuentas(v: unknown): Cuenta[] {
+  try { const l = JSON.parse(String(v ?? '[]')); return Array.isArray(l) ? l : []; } catch { return []; }
+}
+const cuentasVisibles = (l: Cuenta[]) => l.filter((x) => x.activa);
 
 app.get('/api/barberia', async (c) => {
   const d = await datosBarberia(c.env);
@@ -97,6 +106,7 @@ app.get('/api/barberia', async (c) => {
   }
   return c.json({
     ...d,
+    barberia: { ...d.barberia, cuentas: cuentasVisibles(d.barberia.cuentas) },
     barberos: d.barberos.filter((x: any) => x.activo && x.atiende).map(({ es_admin, debe_cambiar_pin, telefono, ...x }: any) => x),
     // Quiénes pueden entrar con PIN (incluye administradores que no atienden)
     personal: d.barberos.filter((x: any) => x.activo && x.con_pin).map((x: any) => ({ id: x.id, nombre: x.nombre, apodo: x.apodo, pin_digitos: x.pin_digitos })),
@@ -234,8 +244,9 @@ const citaPublica = (env: Env, codigo: string) => env.DB.prepare(
 app.get('/api/citas/:codigo', async (c) => {
   const cita = await citaPublica(c.env, c.req.param('codigo'));
   if (!cita) return err(c, 'No encontramos esa cita.', 404);
-  const b = await c.env.DB.prepare('SELECT nombre, direccion, mapa_url, whatsapp_numero, tolerancia_min, recargo_l, dias_anticipacion, horario FROM barberia WHERE id = 1').first<any>();
+  const b = await c.env.DB.prepare('SELECT nombre, direccion, mapa_url, whatsapp_numero, tolerancia_min, recargo_l, dias_anticipacion, horario, cuentas FROM barberia WHERE id = 1').first<any>();
   b.horario = JSON.parse(b.horario);
+  b.cuentas = cuentasVisibles(leerCuentas(b.cuentas));
   const { _id, ...resto } = cita;
   return c.json({ cita: { ...resto, servicios: JSON.parse(cita.servicios) }, barberia: b, ahora: ahoraLocal() });
 });
@@ -587,6 +598,33 @@ function paginaFacebook(v: unknown) {
   t = t.replace(/^@/, '');
   return /^[A-Za-z0-9.\-]{2,80}$/.test(t) ? t : undefined;
 }
+/** Valida la lista de cuentas para transferencias. Devuelve el texto del error si algo no está bien. */
+function normalizarCuentas(v: unknown): Cuenta[] | string {
+  if (!Array.isArray(v)) return 'Lista de cuentas no válida.';
+  if (v.length > 12) return 'Puedes poner hasta 12 cuentas.';
+  const vistas = new Set<string>();
+  const salida: Cuenta[] = [];
+  for (const x of v as any[]) {
+    const banco = /^[a-z0-9_-]{1,30}$/.test(String(x?.banco ?? '')) ? String(x.banco) : 'otro';
+    const banco_nombre = limpiarNombre(x?.banco_nombre).slice(0, 40);
+    if (banco === 'otro' && banco_nombre.length < 2) return 'Escribe el nombre del banco.';
+    const numero = texto(x?.numero, 40).replace(/[^\dA-Za-z -]/g, '').trim();
+    if ((numero.match(/\d/g) ?? []).length < 4) return `Revisa el número de la cuenta${banco_nombre ? ` de ${banco_nombre}` : ''}.`;
+    let id = /^[a-z0-9]{4,16}$/.test(String(x?.id ?? '')) ? String(x.id) : aleatorioHex(4);
+    if (vistas.has(id)) id = aleatorioHex(4);
+    vistas.add(id);
+    salida.push({
+      id, banco, banco_nombre, numero,
+      tipo: ['ahorro', 'cheques', 'billetera'].includes(x?.tipo) ? x.tipo : 'ahorro',
+      moneda: x?.moneda === 'USD' ? 'USD' : 'HNL',
+      titular: limpiarNombre(x?.titular).slice(0, 60),
+      nota: texto(x?.nota, 140),
+      activa: x?.activa !== false,
+    });
+  }
+  return salida;
+}
+
 /** Enlace de Google Maps (o cualquier https). */
 function enlace(v: unknown) {
   const t = texto(v, 500);
@@ -656,6 +694,11 @@ app.put('/api/barberia', dueno, async (c) => {
   if (tiene('dias_anticipacion')) poner('dias_anticipacion', entero(d.dias_anticipacion, 1, 60, 14));
   if (tiene('anticipacion_min')) poner('anticipacion_min', Math.min(1440, Math.max(0, Math.round(Number(d.anticipacion_min)) || 0)));
   if (tiene('agenda_abierta')) poner('agenda_abierta', d.agenda_abierta ? 1 : 0);
+  if (tiene('cuentas')) {
+    const l = normalizarCuentas(d.cuentas);
+    if (typeof l === 'string') return err(c, l);
+    poner('cuentas', JSON.stringify(l));
+  }
 
   if (cols.length) await c.env.DB.prepare(`UPDATE barberia SET ${cols.join(', ')} WHERE id = 1`).bind(...vals).run();
   return c.json({ ok: true });

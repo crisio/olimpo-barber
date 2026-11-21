@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import QRCode from 'qrcode';
 import { L, api, cuandoTexto, duracion, hora12, memoria, minutosEntre } from '../api';
 import { Aviso, Cargando, Confirmar, Logo, Pagina, Poste, SelectorHora, useDatos } from '../ui';
+import Transferencia from '../Transferencia';
 
 function avisar() {
   try {
@@ -158,6 +159,8 @@ export default function Cita() {
           : <><a href={wa} className="btn btn-verde mt-4">Confirmar por WhatsApp</a>
               <p className="mt-2 text-center text-sm text-tenue">Se abre tu WhatsApp con un mensaje listo para la barbería. Envíalo y te recordamos la cita por ahí.</p></>
       )}
+
+      {['agendada', 'en_atencion'].includes(c.estado) && <Transferencia b={b} total={c.total_l} codigo={c.codigo} detalle={cuandoTexto(c.inicio, ahora)} />}
 
       {c.estado === 'no_llego' && !c.recuperada && (
         recuperando ? (
