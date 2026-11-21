@@ -10,6 +10,7 @@ import Dueno from './pages/Dueno';
 import Pantalla from './pages/Pantalla';
 import Privacidad from './pages/Privacidad';
 import { iniciarRegistro } from './registro';
+import InstalarApp from './InstalarApp';
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
@@ -24,6 +25,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/privacidad" element={<Privacidad />} />
         <Route path="*" element={<Inicio />} />
       </Routes>
+      <InstalarApp />
     </BrowserRouter>
   </React.StrictMode>,
 );
