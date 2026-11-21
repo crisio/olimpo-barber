@@ -42,7 +42,7 @@ export async function enviarPush(env: Env, subs: { endpoint: string; p256dh: str
   return { enviadas, fallidas };
 }
 
-const TITULOS = { nueva: 'Nueva cita', cancelada: 'Cita cancelada', movida: 'Cita cambiada de hora', recuperada: 'Cita recuperada (con recargo)' } as const;
+const TITULOS = { nueva: 'Nueva cita', cancelada: 'Cita cancelada', movida: 'Cita cambiada de hora', recuperada: 'Cita recuperada (con recargo)', comprobante: 'Comprobante de pago recibido' } as const;
 
 /** Avisa al barbero de la cita y a los administradores: push del navegador y WhatsApp al barbero. */
 export async function notificarPersonal(env: Env, codigo: string, tipo: keyof typeof TITULOS) {

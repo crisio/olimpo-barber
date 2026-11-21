@@ -139,7 +139,9 @@ En **Panel → Configuración** el dueño, o cualquier administrador, cambia:
 | Equipo | Agregar personas, nombre, apodo, foto, WhatsApp, PIN (temporal o fijo), si atiende clientes, si es administrador, desactivar y eliminar (solo si nunca tuvo citas) |
 | Usuarios con correo | Dar o quitar acceso al panel a otros correos. Si Resend está configurado, les llega un correo con el enlace. Los correos de `OWNER_EMAIL` no se pueden quitar desde aquí |
 
-Una página web no puede abrir la app de un banco directo en la pantalla de transferir, porque los bancos no publican ese enlace. El botón «Abrir la app de mi banco» lleva a la ficha de la app en Play Store o App Store, que muestra **Abrir** si ya está instalada; en computadora abre el sitio del banco. Los identificadores están en `web/src/bancos.ts`.
+**Comprobante de pago**: desde la pantalla de su cita el cliente sube la captura de la transferencia (o la manda por WhatsApp si la barbería tiene número). Al barbero de la cita y a los administradores les llega un aviso y en la agenda ven «Pagó por transferencia · Ver captura». La imagen es privada: solo se ve con sesión y se borra a los 90 días.
+
+Una página web no puede abrir la app de un banco directo en la pantalla de transferir, porque los bancos no publican ese enlace (Banco Atlántida, por ejemplo, no declara enlaces directos a su app en su sitio). El botón «Abrir la app de mi banco» lleva a la ficha de la app en Play Store o App Store, que muestra **Abrir** si ya está instalada; en computadora abre el sitio del banco. Los identificadores están en `web/src/bancos.ts`.
 
 Un administrador no puede quitarse su propio acceso ni borrarse a sí mismo. Si la API publicada es anterior a esta pantalla, Configuración lo avisa y deja guardar solo lo que esa API entiende.
 

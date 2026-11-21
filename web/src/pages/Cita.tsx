@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import QRCode from 'qrcode';
-import { L, api, cuandoTexto, duracion, hora12, memoria, minutosEntre } from '../api';
+import { DEMO, L, api, cuandoTexto, duracion, hora12, memoria, minutosEntre } from '../api';
 import { Aviso, Cargando, Confirmar, Logo, Pagina, Poste, SelectorHora, useDatos } from '../ui';
 import Transferencia from '../Transferencia';
 
@@ -160,7 +160,10 @@ export default function Cita() {
               <p className="mt-2 text-center text-sm text-tenue">Se abre tu WhatsApp con un mensaje listo para la barbería. Envíalo y te recordamos la cita por ahí.</p></>
       )}
 
-      {['agendada', 'en_atencion'].includes(c.estado) && <Transferencia b={b} total={c.total_l} codigo={c.codigo} detalle={cuandoTexto(c.inicio, ahora)} />}
+      {['agendada', 'en_atencion', 'terminada'].includes(c.estado) && (c.estado !== 'terminada' || c.con_comprobante) && (
+        <Transferencia b={b} total={c.total_l} codigo={c.codigo} detalle={cuandoTexto(c.inicio, ahora)}
+          puedeSubir={DEMO || (datos.version ?? 1) >= 4} conComprobante={!!c.con_comprobante} onSubido={recargar} />
+      )}
 
       {c.estado === 'no_llego' && !c.recuperada && (
         recuperando ? (

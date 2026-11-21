@@ -157,6 +157,13 @@ export async function tareasProgramadas(env: Env, ahora: string, limite: string,
       { cita_id: c.id, tipo: 'recordatorio',
         plantilla: env.WA_PLANTILLA_RECORDATORIO ? { nombre: env.WA_PLANTILLA_RECORDATORIO, parametros: [nombre, cuando, c.barbero] } : undefined });
   }
+  // Comprobantes de pago: se borran a los 90 días, igual que los teléfonos
+  const viejos = (await env.DB.prepare('SELECT id, comprobante_key FROM citas WHERE comprobante_key IS NOT NULL AND inicio < ? LIMIT 50')
+    .bind(hace90).all<any>()).results;
+  for (const v of viejos) {
+    await env.ARCHIVOS?.delete(v.comprobante_key).catch(() => {});
+    await env.DB.prepare('UPDATE citas SET comprobante_key = NULL WHERE id = ?').bind(v.id).run();
+  }
   await env.DB.batch([
     env.DB.prepare(`UPDATE citas SET telefono = NULL WHERE telefono IS NOT NULL AND inicio < ?`).bind(hace90),
     env.DB.prepare(`UPDATE clientes SET telefono = NULL WHERE telefono IS NOT NULL AND COALESCE(ultima_cita, creado_en) < ?`).bind(hace90),

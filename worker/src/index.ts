@@ -29,7 +29,7 @@ app.onError((e, c) => {
 });
 
 /** Sube cuando la API gana funciones que la web necesita saber si están publicadas. */
-const VERSION_API = 3; // 2: configuración desde el teléfono · 3: cuentas para transferencias
+const VERSION_API = 4; // 2: configuración desde el teléfono · 3: cuentas para transferencias · 4: comprobantes
 const escaparHtml = (t: string) => t.replace(/[&<>"']/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[x]!);
 
 const err = (c: C, mensaje: string, estado: 400 | 401 | 403 | 404 | 409 | 429 = 400, extra: object = {}) =>
@@ -76,6 +76,7 @@ const dueno = requiere('dueno');
 
 // ---------- Datos públicos ----------
 const COLS_CITA_PUBLICA = `c.codigo, c.inicio, c.estado, c.nombre_publico, c.servicios, c.total_l, c.recargo_l,
+  (c.comprobante_key IS NOT NULL) AS con_comprobante, c.comprobante_en,
   c.recuperada, c.barbero_id, b.nombre AS barbero, b.apodo AS barbero_apodo, (c.telefono IS NOT NULL) AS con_whatsapp`;
 
 async function datosBarberia(env: Env) {
@@ -136,6 +137,8 @@ app.get('/api/pantalla', async (c) => {
 });
 
 app.get('/api/archivos/:clave{.+}', async (c) => {
+  // Los comprobantes de pago son privados: solo se ven con sesión, en /api/citas/:id/comprobante
+  if (c.req.param('clave').startsWith('comprobantes/')) return c.notFound();
   const o = await c.env.ARCHIVOS?.get(c.req.param('clave'));
   if (!o) return c.notFound();
   return new Response(o.body, { headers: { 'content-type': o.httpMetadata?.contentType ?? 'application/octet-stream', 'cache-control': 'public, max-age=86400' } });
@@ -248,7 +251,7 @@ app.get('/api/citas/:codigo', async (c) => {
   b.horario = JSON.parse(b.horario);
   b.cuentas = cuentasVisibles(leerCuentas(b.cuentas));
   const { _id, ...resto } = cita;
-  return c.json({ cita: { ...resto, servicios: JSON.parse(cita.servicios) }, barberia: b, ahora: ahoraLocal() });
+  return c.json({ cita: { ...resto, servicios: JSON.parse(cita.servicios) }, barberia: b, ahora: ahoraLocal(), version: VERSION_API });
 });
 
 app.post('/api/citas/:codigo/cancelar', async (c) => {
@@ -276,6 +279,30 @@ app.post('/api/citas/:codigo/mover', async (c) => {
   } catch { return err(c, 'Esa hora se acaba de ocupar. Elige otra.', 409); }
   c.executionCtx.waitUntil(ofrecerHora(c.env, cita.inicio, ahora).catch((e) => console.error('ofrecer', e)));
   c.executionCtx.waitUntil(notificarPersonal(c.env, cita.codigo, 'movida').catch((e) => console.error('aviso', e)));
+  return c.json({ ok: true });
+});
+
+// El cliente sube la captura de su transferencia desde la pantalla de su cita (el código de la cita es su llave)
+const TIPOS_IMAGEN: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+app.post('/api/citas/:codigo/comprobante', async (c) => {
+  if (!c.env.ARCHIVOS) return err(c, 'El almacenamiento de imágenes no está configurado.');
+  if (await demasiados(c, `comp:${ip(c)}`, 12, 60)) return err(c, 'Demasiados envíos desde este dispositivo. Intenta más tarde.', 429);
+  const cita = await c.env.DB.prepare('SELECT id, codigo, estado, comprobante_key FROM citas WHERE codigo = ?')
+    .bind(c.req.param('codigo').toUpperCase()).first<any>();
+  if (!cita) return err(c, 'No encontramos esa cita.', 404);
+  if (!['agendada', 'en_atencion', 'terminada'].includes(cita.estado)) return err(c, 'Esta cita ya no recibe comprobantes.', 409);
+  const tipo = (c.req.header('content-type') ?? '').split(';')[0].trim();
+  const ext = TIPOS_IMAGEN[tipo];
+  if (!ext) return err(c, 'Sube una foto o captura (JPG, PNG o WebP).');
+  const datos = await c.req.arrayBuffer();
+  if (!datos.byteLength) return err(c, 'La imagen está vacía.');
+  if (datos.byteLength > 3 * 1024 * 1024) return err(c, 'La imagen pesa más de 3 MB.');
+  await anotarIntento(c, `comp:${ip(c)}`);
+  const clave = `comprobantes/${cita.codigo}-${aleatorioHex(8)}.${ext}`;
+  await c.env.ARCHIVOS.put(clave, datos, { httpMetadata: { contentType: tipo } });
+  await c.env.DB.prepare('UPDATE citas SET comprobante_key = ?, comprobante_en = ? WHERE id = ?').bind(clave, utc(), cita.id).run();
+  if (cita.comprobante_key) await c.env.ARCHIVOS.delete(cita.comprobante_key).catch(() => {});
+  c.executionCtx.waitUntil(notificarPersonal(c.env, cita.codigo, 'comprobante').catch((e) => console.error('aviso', e)));
   return c.json({ ok: true });
 });
 
@@ -498,7 +525,8 @@ app.get('/api/agenda', personal, async (c) => {
   const [citas, bloqueos, horas, datos] = await Promise.all([
     c.env.DB.prepare(
       `SELECT c.id, c.codigo, c.barbero_id, c.inicio, c.estado, c.nombre, c.nombre_publico, c.telefono, c.servicios,
-              c.total_l, c.recargo_l, c.origen, c.llego_en, c.terminado_en, k.no_llegadas, k.visitas
+              c.total_l, c.recargo_l, c.origen, c.llego_en, c.terminado_en, k.no_llegadas, k.visitas,
+              (c.comprobante_key IS NOT NULL) AS con_comprobante, c.comprobante_en
        FROM citas c LEFT JOIN clientes k ON k.id = c.cliente_id
        WHERE c.inicio LIKE ?1 AND (?2 IS NULL OR c.barbero_id = ?2) AND c.estado != 'cancelada' ORDER BY c.inicio, c.id`)
       .bind(fecha + '%', barbero).all<any>(),
@@ -543,6 +571,17 @@ app.post('/api/citas/:id/accion', personal, async (c) => {
     return err(c, 'Esa acción no aplica a esta cita.', 409);
   }
   return c.json({ ok: true });
+});
+
+// Ver el comprobante de pago de una cita: el barbero de la cita y los administradores
+app.get('/api/citas/:id/comprobante', personal, async (c) => {
+  const s = c.get('sesion');
+  const cita = await c.env.DB.prepare('SELECT barbero_id, comprobante_key FROM citas WHERE id = ?').bind(Number(c.req.param('id'))).first<any>();
+  if (!cita?.comprobante_key) return err(c, 'Esta cita no tiene comprobante.', 404);
+  if (s.rol === 'barbero' && cita.barbero_id !== s.barbero_id) return err(c, 'Esa cita es de otro barbero.', 403);
+  const o = await c.env.ARCHIVOS?.get(cita.comprobante_key);
+  if (!o) return err(c, 'No se encontró la imagen del comprobante.', 404);
+  return new Response(o.body, { headers: { 'content-type': o.httpMetadata?.contentType ?? 'image/jpeg', 'cache-control': 'private, no-store' } });
 });
 
 app.post('/api/agenda/manual', personal, async (c) => {

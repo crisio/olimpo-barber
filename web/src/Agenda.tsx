@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { L, api, diaTexto, hora12, minutosEntre, sumarDias } from './api';
+import { urlComprobante } from './imagen';
 import { Aviso, Cargando, useDatos } from './ui';
 
 const ETIQUETA: Record<string, string> = { agendada: 'Agendada', en_atencion: 'En la silla', terminada: 'Terminada', no_llego: 'No llegó' };
@@ -12,6 +13,12 @@ export default function Agenda({ rol }: { rol: 'barbero' | 'dueno' }) {
   const [fallo, setFallo] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [manual, setManual] = useState<string | null>(null);
+  const [comprobante, setComprobante] = useState<any>(null);
+  /** Aviso de pago por transferencia, con botón para ver la captura que subió el cliente. */
+  const pago = (c: any, grande = false) => c.con_comprobante ? (
+    <button className={`mt-2 flex items-center gap-2 rounded-xl border-2 border-verde bg-verde/15 font-semibold ${grande ? 'w-full px-4 py-3 text-lg' : 'px-3 py-1.5 text-sm'}`}
+      onClick={() => setComprobante(c)}>🧾 Pagó por transferencia · Ver captura</button>
+  ) : null;
 
   if (error && !datos) return <Aviso>{error.message}</Aviso>;
   if (!datos) return <Cargando />;
@@ -66,6 +73,7 @@ export default function Agenda({ rol }: { rol: 'barbero' | 'dueno' }) {
           {enCurso ? (<>
             <div className="titulo text-5xl">{enCurso.nombre}</div>
             <div className="text-lg">{enCurso.servicios.map((s: any) => s.nombre).join(' + ')} · <b>{L(enCurso.total_l)}</b>{enCurso.recargo_l ? ` (incluye recargo ${L(enCurso.recargo_l)})` : ''}</div>
+            {pago(enCurso, true)}
           </>) : <div className="titulo text-4xl text-tenue">Silla libre</div>}
         </div>
         <div className={`mt-2 rounded-2xl border-2 p-4 ${tolVencida ? 'border-rojo bg-rojo/15' : 'border-borde bg-carta'}`}>
@@ -75,6 +83,7 @@ export default function Agenda({ rol }: { rol: 'barbero' | 'dueno' }) {
               <div className="titulo min-w-0 truncate text-4xl">{siguiente.nombre}</div><div className="titulo shrink-0 whitespace-nowrap text-3xl">{hora12(siguiente.inicio.slice(11))}</div>
             </div>
             <div className="text-lg">{siguiente.servicios.map((s: any) => s.nombre).join(' + ')} · <b>{L(siguiente.total_l)}</b></div>
+            {pago(siguiente, true)}
             <div className="mt-1 font-semibold">
               {faltanSig > 0 ? `Llega en ${faltanSig} min` : tolVencida ? `Tolerancia vencida hace ${-(faltanSig + tol)} min` : `En tolerancia: quedan ${faltanSig + tol} min`}
               {siguiente.no_llegadas > 0 && <span className="text-rojo"> · ha faltado {siguiente.no_llegadas} {siguiente.no_llegadas === 1 ? 'vez' : 'veces'}</span>}
@@ -111,6 +120,7 @@ export default function Agenda({ rol }: { rol: 'barbero' | 'dueno' }) {
                     <div key={c.id} className={c.estado === 'no_llego' ? 'text-tenue' : ''}>
                       <div className="font-semibold">{c.nombre} <span className="text-sm font-normal text-tenue">· {c.codigo} · {ETIQUETA[c.estado]}{c.origen === 'manual' ? ' · a mano' : ''}</span></div>
                       <div className="text-sm text-tenue">{c.servicios.map((s: any) => s.nombre).join(' + ')} · {L(c.total_l)}{c.telefono ? ` · +${c.telefono}` : ''}</div>
+                      {pago(c)}
                       <div className="mt-1 flex flex-wrap gap-3 text-sm">
                         {c.estado === 'agendada' && esHoy && !enCurso && <button className="font-semibold underline" disabled={ocupado} onClick={() => accion(c.id, 'llego')}>Atender ahora</button>}
                         {c.estado === 'agendada' && <button className="underline" disabled={ocupado} onClick={() => accion(c.id, 'cancelar')}>Cancelar</button>}
@@ -130,6 +140,7 @@ export default function Agenda({ rol }: { rol: 'barbero' | 'dueno' }) {
           );
         })}
       </ul>
+      {comprobante && <VerComprobante cita={comprobante} onCerrar={() => setComprobante(null)} />}
       {manual && <Manual inicio={manual} barbero={barbero} servicios={datos.servicios.filter((s: any) => s.activo)} onCerrar={(ok) => { setManual(null); if (ok) recargar(); }} />}
     </div>
   );
@@ -164,6 +175,29 @@ function Manual({ inicio, barbero, servicios, onCerrar }: { inicio: string; barb
         <button className="btn btn-rojo mt-4" disabled={nombre.trim().length < 2 || !sel.length}>Guardar cita</button>
         <button type="button" className="btn btn-linea mt-2" onClick={() => onCerrar(false)}>Cerrar</button>
       </form>
+    </div>
+  );
+}
+
+function VerComprobante({ cita, onCerrar }: { cita: any; onCerrar: () => void }) {
+  const [url, setUrl] = useState('');
+  const [fallo, setFallo] = useState('');
+  useEffect(() => {
+    let vivo = true, creada = '';
+    urlComprobante(cita.id).then((u) => { creada = u; if (vivo) setUrl(u); }).catch((e) => vivo && setFallo(e.message));
+    return () => { vivo = false; if (creada.startsWith('blob:')) URL.revokeObjectURL(creada); };
+  }, [cita.id]);
+  const cuando = cita.comprobante_en ? new Date(cita.comprobante_en).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/90" role="dialog" aria-modal="true" aria-label={`Comprobante de ${cita.nombre}`}>
+      <div className="flex items-center justify-between gap-3 border-b border-borde bg-carta px-4 py-3">
+        <div className="min-w-0"><div className="truncate font-semibold">{cita.nombre} · {L(cita.total_l)}</div><div className="text-sm text-tenue">Comprobante{cuando ? ` subido el ${cuando}` : ''} · {cita.codigo}</div></div>
+        <button className="btn btn-linea !min-h-11 !w-auto shrink-0 !text-lg" onClick={onCerrar}>Cerrar</button>
+      </div>
+      <div className="flex-1 overflow-auto p-3">
+        {fallo ? <Aviso>{fallo}</Aviso> : url ? <img src={url} alt={`Captura del pago de ${cita.nombre}`} className="mx-auto max-w-full rounded-xl" /> : <Cargando />}
+      </div>
+      <p className="bg-carta px-4 py-3 text-center text-sm text-tenue">Revisa en tu app del banco que el dinero haya entrado antes de darlo por pagado.</p>
     </div>
   );
 }
