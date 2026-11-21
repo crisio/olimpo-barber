@@ -1,9 +1,11 @@
 // Pagar por transferencia: el cliente copia el número de cuenta, abre la app de su banco y pega.
 import { useEffect, useState } from 'react';
 import { L } from './api';
-import { BANCOS, Banco, Cuenta, MONEDAS, TIPOS, bancoDe, copiar, cuentasDe, enlaceApp, iniciales } from './bancos';
+import { BANCOS, Banco, Cuenta, MONEDAS, TIPOS, bancoDe, copiar, cuentasDe, enlaceApp, iniciales, urlLogoBanco } from './bancos';
 
 export function SelloBanco({ banco, tam = 'h-12 w-12 text-lg' }: { banco: Banco; tam?: string }) {
+  const logo = urlLogoBanco(banco);
+  if (logo) return <img src={logo} alt="" className={`${tam} shrink-0 rounded-xl object-cover`} />;
   return (
     <span className={`${tam} titulo flex shrink-0 items-center justify-center rounded-xl text-white`} style={{ background: banco.color }} aria-hidden="true">
       {iniciales(banco)}
