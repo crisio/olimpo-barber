@@ -125,7 +125,12 @@ function responder(rutaCompleta: string, d: any, metodo: string, token: string |
     if (!c) return mal('No encontramos esa cita.', 404);
     if (!m[2]) {
       const b = nombreBarbero(c.barbero_id);
-      return ok({ ahora: a, barberia: E.barberia, cita: { codigo: c.codigo, inicio: c.inicio, estado: c.estado, nombre_publico: c.nombre_publico, servicios: c.servicios, total_l: c.total_l, recargo_l: c.recargo_l, recuperada: c.recuperada, barbero_id: c.barbero_id, barbero: b.nombre, barbero_apodo: b.apodo, con_whatsapp: c.telefono ? 1 : 0 } });
+      return ok({ ahora: a, barberia: E.barberia, version: 4, cita: { con_comprobante: c.con_comprobante ?? 0, comprobante_en: c.comprobante_en ?? null, codigo: c.codigo, inicio: c.inicio, estado: c.estado, nombre_publico: c.nombre_publico, servicios: c.servicios, total_l: c.total_l, recargo_l: c.recargo_l, recuperada: c.recuperada, barbero_id: c.barbero_id, barbero: b.nombre, barbero_apodo: b.apodo, con_whatsapp: c.telefono ? 1 : 0 } });
+    }
+    if (m[2] === '/comprobante') {
+      if (!['agendada', 'en_atencion', 'terminada'].includes(c.estado)) return mal('Esta cita ya no recibe comprobantes.');
+      c.comprobante = String(d.imagen ?? ''); c.con_comprobante = 1; c.comprobante_en = new Date().toISOString();
+      return ok({ ok: true });
     }
     if (m[2] === '/cancelar') { if (c.estado !== 'agendada') return mal('Esta cita ya no se puede cancelar.'); c.estado = 'cancelada'; return ok({ ok: true }); }
     if (m[2] === '/mover') {
@@ -170,6 +175,10 @@ function responder(rutaCompleta: string, d: any, metodo: string, token: string |
     else if (x === 'deshacer' && ['en_atencion', 'no_llego'].includes(c.estado) && !c.recuperada) { c.estado = 'agendada'; c.llego_en = null; }
     else return mal('Esa acción no aplica a esta cita.');
     return ok({ ok: true });
+  }
+  if ((m = ruta.match(/^\/citas\/(\d+)\/comprobante$/))) {
+    const c = E.citas.find((x) => x.id === Number(m![1]));
+    return c?.comprobante ? ok({ imagen: c.comprobante }) : mal('Esta cita no tiene comprobante.', 404);
   }
   if (ruta === '/agenda/manual') return crear({ ...d, barbero_id: miBarbero ?? d.barbero_id }, true);
   if (ruta === '/bloqueos') {

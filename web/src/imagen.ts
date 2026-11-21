@@ -49,3 +49,29 @@ export async function subirImagen(archivo: File, barbero?: number | null): Promi
 
 /** Quita el logo (vuelve el emblema original) o la foto de un barbero. */
 export const quitarImagen = (barbero?: number | null) => api(`/archivos${barbero ? `?barbero=${barbero}` : ''}`, undefined, 'DELETE');
+
+/**
+ * El cliente sube la captura de su transferencia desde su cita. Se achica a 2000 px por lado en JPG,
+ * suficiente para leer el número de la transacción, y pesa unos cientos de KB.
+ */
+export async function subirComprobante(codigo: string, archivo: File) {
+  const blob = await reducir(archivo, 2000, 'image/jpeg');
+  if (DEMO) { await api(`/citas/${codigo}/comprobante`, { imagen: await aDataUrl(blob) }); return; }
+  let r: Response;
+  try {
+    r = await fetch(`${API}/api/citas/${encodeURIComponent(codigo)}/comprobante`, { method: 'POST', headers: { 'content-type': blob.type }, body: blob });
+  } catch { throw new ErrorApi('Sin conexión. Revisa tu internet.', 0, null); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new ErrorApi(d?.error ?? 'No se pudo enviar la captura.', r.status, d);
+}
+
+/** El personal ve el comprobante (es privado: se pide con la sesión). Devuelve una dirección para <img>. */
+export async function urlComprobante(citaId: number): Promise<string> {
+  if (DEMO) return (await api(`/citas/${citaId}/comprobante`)).imagen;
+  let r: Response;
+  try {
+    r = await fetch(`${API}/api/citas/${citaId}/comprobante`, { headers: { authorization: `Bearer ${token.leer()}` } });
+  } catch { throw new ErrorApi('Sin conexión. Revisa tu internet.', 0, null); }
+  if (!r.ok) throw new ErrorApi((await r.json().catch(() => ({})))?.error ?? 'No se pudo abrir el comprobante.', r.status, null);
+  return URL.createObjectURL(await r.blob());
+}

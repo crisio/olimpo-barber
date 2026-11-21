@@ -1,6 +1,7 @@
 // Pagar por transferencia: el cliente copia el número de cuenta, abre la app de su banco y pega.
 import { useEffect, useState } from 'react';
 import { L } from './api';
+import { subirComprobante } from './imagen';
 import { BANCOS, Banco, Cuenta, MONEDAS, TIPOS, bancoDe, copiar, cuentasDe, enlaceApp, iniciales, urlLogoBanco } from './bancos';
 
 export function SelloBanco({ banco, tam = 'h-12 w-12 text-lg' }: { banco: Banco; tam?: string }) {
@@ -16,7 +17,13 @@ export function SelloBanco({ banco, tam = 'h-12 w-12 text-lg' }: { banco: Banco;
 /** Número sin espacios ni guiones, como lo piden las apps de los bancos. */
 const paraPegar = (n: string) => n.replace(/[\s-]/g, '');
 
-export default function Transferencia({ b, total, codigo, detalle }: { b: any; total?: number; codigo?: string; detalle?: string }) {
+/**
+ * `codigo`: estamos en la pantalla de una cita (se puede subir el comprobante si la API lo permite).
+ * `puedeSubir`: la API publicada recibe comprobantes. `conComprobante`: ya hay uno enviado.
+ */
+export default function Transferencia({ b, total, codigo, detalle, puedeSubir = false, conComprobante = false, onSubido }: {
+  b: any; total?: number; codigo?: string; detalle?: string; puedeSubir?: boolean; conComprobante?: boolean; onSubido?: () => void;
+}) {
   const cuentas = cuentasDe(b);
   const [copiada, setCopiada] = useState<string | null>(null);
   const [aviso, setAviso] = useState('');
@@ -63,7 +70,7 @@ export default function Transferencia({ b, total, codigo, detalle }: { b: any; t
               {c.nota && <div className="mt-1 text-sm text-tenue">{c.nota}</div>}
               <div className={`mt-3 grid gap-2 ${app ? 'grid-cols-2' : ''}`}>
                 <button className={`btn !min-h-14 !text-xl ${copiada === c.id ? 'btn-verde' : 'btn-rojo'}`} onClick={() => copiarCuenta(c)} aria-label={`Copiar número de cuenta de ${banco.nombre}`}>
-                  {copiada === c.id ? '✓ Copiado' : 'Copiar número'}
+                  {copiada === c.id ? '✓ Copiado' : 'Copiar'}
                 </button>
                 {app && <a className="btn btn-linea !min-h-14 !text-xl" href={app} target="_blank" rel="noopener noreferrer" aria-label={`Abrir la app de ${banco.nombre}`}>Abrir app</a>}
               </div>
@@ -72,7 +79,16 @@ export default function Transferencia({ b, total, codigo, detalle }: { b: any; t
         })}
       </div>
       <button className="btn btn-azul mt-3" onClick={() => setElegir(true)}>Abrir la app de mi banco</button>
-      {wa && <a className="btn btn-verde mt-2" href={wa} target="_blank" rel="noopener noreferrer">Enviar comprobante</a>}
+      {codigo && puedeSubir
+        ? <YaPague codigo={codigo} wa={wa} enviado={conComprobante} onSubido={onSubido} />
+        : (wa || codigo) && (
+          <div className="mt-4 rounded-2xl border border-borde bg-carta p-4">
+            <h3 className="titulo text-2xl">¿Ya pagaste?</h3>
+            {wa && <a className="btn btn-verde mt-3" href={wa} target="_blank" rel="noopener noreferrer">Enviar captura por WhatsApp</a>}
+            {!codigo && <p className="mt-2 text-sm text-tenue">Si ya agendaste, también puedes subir la captura desde la pantalla de tu cita.</p>}
+            {codigo && !wa && <p className="mt-1 text-sm text-tenue">Muéstrale la captura de la transferencia a tu barbero cuando llegues.</p>}
+          </div>
+        )}
       {elegir && <ElegirBanco primero={cuentas.map((c) => c.banco)} onCerrar={() => setElegir(false)} />}
     </section>
   );
@@ -101,6 +117,35 @@ function ElegirBanco({ primero, onCerrar }: { primero: string[]; onCerrar: () =>
         </div>
         <button className="btn btn-linea mt-4" onClick={onCerrar}>Cerrar</button>
       </div>
+    </div>
+  );
+}
+
+/** Después de transferir: subir la captura aquí (le llega al barbero) o mandarla por WhatsApp. */
+function YaPague({ codigo, wa, enviado, onSubido }: { codigo: string; wa: string | false; enviado: boolean; onSubido?: () => void }) {
+  const [subiendo, setSubiendo] = useState(false);
+  const [msj, setMsj] = useState<{ ok: boolean; texto: string } | null>(null);
+  async function subir(f: File) {
+    setSubiendo(true); setMsj(null);
+    try {
+      await subirComprobante(codigo, f);
+      setMsj({ ok: true, texto: '¡Listo! Tu barbero ya puede ver la captura de tu pago.' });
+      onSubido?.();
+    } catch (e: any) {
+      setMsj({ ok: false, texto: e?.message ?? 'No se pudo enviar la captura.' });
+    } finally { setSubiendo(false); }
+  }
+  return (
+    <div className={`mt-4 rounded-2xl border-2 p-4 ${enviado ? 'border-verde bg-verde/10' : 'border-borde bg-carta'}`}>
+      <h3 className="titulo text-2xl">{enviado ? '✓ Comprobante enviado' : '¿Ya pagaste?'}</h3>
+      <p className="mt-1 text-tenue">{enviado ? 'Tu barbero ya lo puede ver. Si te equivocaste de captura, súbela otra vez.' : 'Sube la captura de la transferencia y le llega a tu barbero.'}</p>
+      {msj && <p className={`mt-3 rounded-xl border px-4 py-3 font-semibold ${msj.ok ? 'border-verde/60 bg-verde/15' : 'border-rojo/60 bg-rojo/15'}`} role="status">{msj.texto}</p>}
+      <label className={`btn mt-3 cursor-pointer ${enviado ? 'btn-linea' : 'btn-rojo'} ${subiendo ? 'pointer-events-none opacity-50' : ''}`}>
+        {subiendo ? 'Enviando…' : enviado ? 'Cambiar captura' : 'Subir captura del pago'}
+        <input type="file" accept="image/*" className="sr-only" disabled={subiendo}
+          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) subir(f); }} />
+      </label>
+      {wa && <a className="btn btn-linea mt-2 !text-lg" href={wa} target="_blank" rel="noopener noreferrer">O enviarla por WhatsApp</a>}
     </div>
   );
 }
