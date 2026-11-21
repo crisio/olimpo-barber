@@ -63,14 +63,14 @@ export default function Transferencia({ b, total, codigo, detalle }: { b: any; t
                 <button className={`btn !min-h-14 !text-xl ${copiada === c.id ? 'btn-verde' : 'btn-rojo'}`} onClick={() => copiarCuenta(c)} aria-label={`Copiar número de cuenta de ${banco.nombre}`}>
                   {copiada === c.id ? '✓ Copiado' : 'Copiar número'}
                 </button>
-                {app && <a className="btn btn-linea !min-h-14 !text-xl" href={app} target="_blank" rel="noopener noreferrer">Abrir {banco.corto}</a>}
+                {app && <a className="btn btn-linea !min-h-14 !text-xl" href={app} target="_blank" rel="noopener noreferrer" aria-label={`Abrir la app de ${banco.nombre}`}>Abrir app</a>}
               </div>
             </div>
           );
         })}
       </div>
       <button className="btn btn-azul mt-3" onClick={() => setElegir(true)}>Abrir la app de mi banco</button>
-      {wa && <a className="btn btn-verde mt-2" href={wa} target="_blank" rel="noopener noreferrer">Ya transferí: enviar comprobante</a>}
+      {wa && <a className="btn btn-verde mt-2" href={wa} target="_blank" rel="noopener noreferrer">Enviar comprobante</a>}
       {elegir && <ElegirBanco primero={cuentas.map((c) => c.banco)} onCerrar={() => setElegir(false)} />}
     </section>
   );
