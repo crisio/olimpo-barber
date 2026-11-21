@@ -86,7 +86,7 @@ export default function Configuracion({ yo }: { yo: any }) {
             <Fila icono="imagen" titulo="Logo y nombre" resumen={b.nombre} onClick={() => setSec('marca')} />
             <Fila icono="tienda" titulo="Datos del negocio" resumen={[b.direccion, b.whatsapp_numero && 'WhatsApp', b.instagram && 'Instagram', b.facebook && 'Facebook', b.tiktok && 'TikTok'].filter(Boolean).join(' · ') || 'Dirección, WhatsApp y redes'} onClick={() => setSec('negocio')} />
             <Fila icono="precio" titulo="Precios y servicios" resumen={servicios.map((s: any) => `${s.nombre} ${L(s.precio_l)}`).join(' · ') || 'Sin servicios visibles'} onClick={() => setSec('precios')} />
-            <Fila icono="banco" titulo="Cuentas para transferencias" resumen={!conCuentas ? 'Se activa al publicar la API nueva' : (b.cuentas ?? []).length ? (b.cuentas as Cuenta[]).map((c) => bancoDe(c.banco, c.banco_nombre).corto).join(' · ') : 'Agrega tus cuentas de banco'} onClick={() => setSec('cuentas')} deshabilitada={!conCuentas} />
+            <Fila icono="banco" titulo="Cuentas para transferencias" resumen={!conCuentas ? 'Se activa al publicar la API nueva' : (b.cuentas ?? []).some((c: Cuenta) => c.activa) ? `Disponibles: ${(b.cuentas as Cuenta[]).filter((c) => c.activa).map((c) => bancoDe(c.banco, c.banco_nombre).corto).join(' · ')}` : 'Ninguna disponible todavía'} onClick={() => setSec('cuentas')} deshabilitada={!conCuentas} />
             <Fila icono="reloj" titulo="Horario y reglas de citas" resumen={`${abiertos.length} día${abiertos.length === 1 ? '' : 's'} a la semana · citas de ${b.duracion_cita_min} min`} onClick={() => setSec('horario')} />
             <Fila icono="equipo" titulo="Equipo" resumen={`${datos.barberos.filter((x: any) => x.activo).length} activos · barberos y administradores`} onClick={() => setSec('equipo')} />
             <Fila icono="correo" titulo="Usuarios con correo" resumen={nueva ? 'Quién entra al panel con su correo' : 'Se activa al publicar la API nueva'} onClick={() => setSec('usuarios')} deshabilitada={!nueva} />
@@ -662,81 +662,110 @@ const idNuevo = () => Math.random().toString(36).slice(2, 10).padEnd(6, '0');
 
 function SecCuentas({ ctx }: { ctx: Ctx }) {
   const cuentas: Cuenta[] = Array.isArray(ctx.b.cuentas) ? ctx.b.cuentas : [];
-  const [editando, setEditando] = useState<Cuenta | 'nueva' | null>(null);
+  const [editando, setEditando] = useState<{ c: Cuenta; nueva: boolean } | null>(null);
   const guardarLista = (lista: Cuenta[], ok: string) => ctx.guardarBarberia({ cuentas: lista }, ok);
   if (editando) {
-    const nueva = editando === 'nueva';
+    const { c, nueva } = editando;
     return (
-      <EditarCuenta c={nueva ? null : editando} titular={ctx.b.nombre} onVolver={() => setEditando(null)}
-        onGuardar={async (c) => {
-          const lista = nueva ? [...cuentas, c] : cuentas.map((x) => (x.id === c.id ? c : x));
-          if (await guardarLista(lista, nueva ? 'Cuenta agregada. Ya la ven tus clientes.' : 'Cuenta guardada.')) setEditando(null);
+      <EditarCuenta c={c} nueva={nueva} titular={ctx.b.nombre} onVolver={() => setEditando(null)}
+        onGuardar={async (x) => {
+          const lista = nueva ? [...cuentas, x] : cuentas.map((y) => (y.id === x.id ? x : y));
+          const texto = x.activa ? `${bancoDe(x.banco, x.banco_nombre).corto}: disponible. Ya la ven tus clientes.` : `${bancoDe(x.banco, x.banco_nombre).corto}: guardada como no disponible.`;
+          if (await guardarLista(lista, texto)) setEditando(null);
         }}
         onBorrar={nueva ? undefined : async () => {
-          if (await guardarLista(cuentas.filter((x) => x.id !== (editando as Cuenta).id), 'Cuenta eliminada.')) setEditando(null);
+          if (await guardarLista(cuentas.filter((y) => y.id !== c.id), 'Datos de la cuenta borrados.')) setEditando(null);
         }} />
     );
   }
-  const mover = (i: number, d: number) => {
+  const vacia = (banco: string): Cuenta => ({ id: idNuevo(), banco, banco_nombre: '', tipo: BANCOS.find((b) => b.clave === banco)?.billetera ? 'billetera' : 'ahorro', moneda: 'HNL', numero: '', titular: ctx.b.nombre, nota: '', activa: true });
+  const disponibles = cuentas.filter((c) => c.activa);
+  const guardadasNo = cuentas.filter((c) => !c.activa);
+  // Bancos del catálogo que todavía no tienen ninguna cuenta guardada
+  const sinDatos = BANCOS.filter((b) => !cuentas.some((c) => c.banco === b.clave));
+  // Ordena entre las disponibles, que son las que ven los clientes
+  const mover = (id: string, d: number) => {
+    const vecina = disponibles[disponibles.findIndex((x) => x.id === id) + d];
+    if (!vecina) return;
     const l = [...cuentas];
-    [l[i], l[i + d]] = [l[i + d], l[i]];
+    const i = l.findIndex((x) => x.id === id), j = l.findIndex((x) => x.id === vecina.id);
+    [l[i], l[j]] = [l[j], l[i]];
     guardarLista(l, 'Orden guardado.');
   };
+  const fila = (c: Cuenta, opciones: { orden?: { arriba: boolean; abajo: boolean } } = {}) => {
+    const banco = bancoDe(c.banco, c.banco_nombre);
+    return (
+      <li key={c.id} className="flex items-center">
+        <button className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left active:bg-borde/40" onClick={() => setEditando({ c, nueva: false })}>
+          <SelloBanco banco={banco} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-lg font-semibold">{banco.nombre}</span>
+            {c.numero ? <span className="block truncate tabular-nums">{c.numero}</span> : <span className="block text-sm text-tenue">Sin número todavía</span>}
+            <span className="mt-1 flex flex-wrap gap-1">
+              {c.activa ? <Insignia tono="verde">Disponible</Insignia> : <Insignia tono="rojo">No disponible</Insignia>}
+              {c.numero && <><Insignia>{TIPOS[c.tipo]}</Insignia><Insignia>{MONEDAS[c.moneda]}</Insignia></>}
+            </span>
+          </span>
+          <span className="text-tenue"><Flecha /></span>
+        </button>
+        {opciones.orden && (
+          <span className="flex flex-col gap-1 pr-2">
+            <button className="h-9 w-9 rounded-lg border border-borde disabled:opacity-20" disabled={!opciones.orden.arriba} aria-label={`Subir cuenta de ${banco.nombre}`} onClick={() => mover(c.id, -1)}>↑</button>
+            <button className="h-9 w-9 rounded-lg border border-borde disabled:opacity-20" disabled={!opciones.orden.abajo} aria-label={`Bajar cuenta de ${banco.nombre}`} onClick={() => mover(c.id, 1)}>↓</button>
+          </span>
+        )}
+      </li>
+    );
+  };
+  const lista = (titulo: string, ayuda: string, filas: ReactNode[]) => filas.length > 0 && (
+    <div>
+      <h3 className="titulo text-2xl">{titulo}</h3>
+      <p className="mb-2 text-sm text-tenue">{ayuda}</p>
+      <ul className="divide-y divide-borde overflow-hidden rounded-2xl border border-borde bg-carta">{filas}</ul>
+    </div>
+  );
   return (
     <Sub titulo="Cuentas para transferencias" volver={ctx.volver}>
-      <p className="text-tenue">Tus clientes las ven en la página de inicio y en su cita, con un botón para <b className="text-crema">copiar el número</b> y otro para <b className="text-crema">abrir la app de su banco</b>. Puedes poner cuentas de cualquier banco o billetera.</p>
-      {cuentas.length > 0 && (
-        <ul className="divide-y divide-borde overflow-hidden rounded-2xl border border-borde bg-carta">
-          {cuentas.map((c, i) => {
-            const banco = bancoDe(c.banco, c.banco_nombre);
-            return (
-              <li key={c.id} className="flex items-center">
-                <button className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left active:bg-borde/40" onClick={() => setEditando(c)}>
-                  <SelloBanco banco={banco} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-lg font-semibold">{banco.nombre}</span>
-                    <span className="block truncate tabular-nums">{c.numero}</span>
-                    <span className="mt-1 flex flex-wrap gap-1">
-                      <Insignia>{TIPOS[c.tipo]}</Insignia><Insignia>{MONEDAS[c.moneda]}</Insignia>
-                      {!c.activa && <Insignia tono="rojo">Oculta</Insignia>}
-                    </span>
-                  </span>
-                  <span className="text-tenue"><Flecha /></span>
-                </button>
-                {cuentas.length > 1 && (
-                  <span className="flex flex-col gap-1 pr-2">
-                    <button className="h-9 w-9 rounded-lg border border-borde disabled:opacity-20" disabled={i === 0} aria-label={`Subir cuenta de ${banco.nombre}`} onClick={() => mover(i, -1)}>↑</button>
-                    <button className="h-9 w-9 rounded-lg border border-borde disabled:opacity-20" disabled={i === cuentas.length - 1} aria-label={`Bajar cuenta de ${banco.nombre}`} onClick={() => mover(i, 1)}>↓</button>
-                  </span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <button className="btn btn-azul" disabled={cuentas.length >= 12} onClick={() => setEditando('nueva')}>+ Agregar cuenta</button>
-      {cuentas.length > 0 && <p className="text-center text-sm text-tenue"><Link className="underline" to="/">Ver cómo las ven tus clientes</Link></p>}
+      <p className="text-tenue">Toca cualquier banco para poner tu número de cuenta y marcarlo como <b className="text-crema">Disponible</b> o <b className="text-crema">No disponible</b>. Tus clientes solo ven los disponibles, con botones para copiar el número y abrir la app de su banco.</p>
+      {lista('Disponibles', disponibles.length > 1 ? 'Tus clientes las ven en este orden.' : 'Tus clientes ven esta cuenta.',
+        disponibles.map((c, i) => fila(c, disponibles.length > 1 ? { orden: { arriba: i > 0, abajo: i < disponibles.length - 1 } } : {})))}
+      {lista('No disponibles', 'Guardadas, pero los clientes no las ven.', guardadasNo.map((c) => fila(c)))}
+      {lista('Otros bancos', 'Todavía sin cuenta. Toca uno para agregarla cuando la abras.', sinDatos.map((b) => (
+        <li key={b.clave}>
+          <button className="flex w-full items-center gap-3 px-4 py-3 text-left active:bg-borde/40" onClick={() => setEditando({ c: vacia(b.clave), nueva: true })}>
+            <SelloBanco banco={b} />
+            <span className="min-w-0 flex-1"><span className="block truncate text-lg font-semibold">{b.nombre}</span><span className="mt-1 flex"><Insignia>No disponible</Insignia></span></span>
+            <span className="text-tenue"><Flecha /></span>
+          </button>
+        </li>
+      )))}
+      <button className="btn btn-azul" disabled={cuentas.length >= 40} onClick={() => setEditando({ c: vacia(OTRO), nueva: true })}>+ Otro banco o segunda cuenta</button>
+      {disponibles.length > 0 && <p className="text-center text-sm text-tenue"><Link className="underline" to="/">Ver cómo las ven tus clientes</Link></p>}
     </Sub>
   );
 }
 
-function EditarCuenta({ c, titular, onVolver, onGuardar, onBorrar }: {
-  c: Cuenta | null; titular: string; onVolver: () => void; onGuardar: (c: Cuenta) => Promise<void>; onBorrar?: () => Promise<void>;
+function EditarCuenta({ c, nueva, titular, onVolver, onGuardar, onBorrar }: {
+  c: Cuenta; nueva: boolean; titular: string; onVolver: () => void; onGuardar: (c: Cuenta) => Promise<void>; onBorrar?: () => Promise<void>;
 }) {
-  const inicial: Cuenta = c ?? { id: idNuevo(), banco: 'atlantida', banco_nombre: '', tipo: 'ahorro', moneda: 'HNL', numero: '', titular, nota: '', activa: true };
-  const [f, setF] = useState<Cuenta>(inicial);
+  const [f, setF] = useState<Cuenta>(c);
   const [borrar, setBorrar] = useState(false);
   const banco = bancoDe(f.banco, f.banco_nombre);
   const digitos = (f.numero.match(/\d/g) ?? []).length;
-  const valido = digitos >= 4 && (f.banco !== OTRO || f.banco_nombre.trim().length >= 2);
+  const faltaNumero = f.activa && digitos < 4;
+  const valido = !faltaNumero && (f.banco !== OTRO || f.banco_nombre.trim().length >= 2);
   const elegirBanco = (clave: string) => {
     const b = BANCOS.find((x) => x.clave === clave);
     // Una billetera móvil (Tigo Money y similares) es su propio tipo de cuenta
     setF({ ...f, banco: clave, tipo: b?.billetera ? 'billetera' : f.tipo === 'billetera' ? 'ahorro' : f.tipo });
   };
   return (
-    <Sub titulo={c ? banco.nombre : 'Nueva cuenta'} volver={onVolver} atras="Cuentas"
-      pie={<button className="btn btn-rojo" disabled={!valido || igual(f, inicial)} onClick={() => onGuardar({ ...f, numero: f.numero.trim(), banco_nombre: f.banco === OTRO ? f.banco_nombre.trim() : '' })}>{c ? 'Guardar' : 'Agregar cuenta'}</button>}>
+    <Sub titulo={banco.clave === OTRO && !f.banco_nombre ? 'Nueva cuenta' : banco.nombre} volver={onVolver} atras="Cuentas"
+      pie={<button className="btn btn-rojo" disabled={!valido || (!nueva && igual(f, c))} onClick={() => onGuardar({ ...f, numero: f.numero.trim(), banco_nombre: f.banco === OTRO ? f.banco_nombre.trim() : '' })}>Guardar</button>}>
+      <Carta>
+        <Interruptor activo={f.activa} onCambio={(v) => setF({ ...f, activa: v })} etiqueta={<b>Disponible</b>}
+          detalle={f.activa ? 'Tus clientes la ven y pueden transferir aquí.' : 'No disponible: queda guardada y los clientes no la ven.'} />
+      </Carta>
       <Carta>
         <div className="grid gap-4">
           <Campo etiqueta="Banco o billetera">
@@ -750,8 +779,13 @@ function EditarCuenta({ c, titular, onVolver, onGuardar, onBorrar }: {
             </div>
           </Campo>
           {f.banco === OTRO && (
-            <Campo etiqueta="Nombre del banco"><input className="campo" maxLength={40} value={f.banco_nombre} onChange={(e) => setF({ ...f, banco_nombre: e.target.value })} placeholder="Ej. Banco Cuscatlán" /></Campo>
+            <Campo etiqueta="Nombre del banco"><input className="campo" maxLength={40} value={f.banco_nombre} onChange={(e) => setF({ ...f, banco_nombre: e.target.value })} placeholder="Ej. Cooperativa Elga" /></Campo>
           )}
+          <Campo etiqueta={f.tipo === 'billetera' ? 'Número de la billetera (celular)' : 'Número de cuenta'}>
+            <input className="campo titulo !text-3xl tracking-wider" inputMode="numeric" autoComplete="off" maxLength={40} value={f.numero}
+              onChange={(e) => setF({ ...f, numero: e.target.value.replace(/[^\d -]/g, '') })} placeholder={f.activa ? '0000000000' : 'Puedes dejarlo vacío'} />
+          </Campo>
+          {faltaNumero && <p className="-mt-2 text-sm text-rojo">{f.numero ? 'Escribe el número completo.' : 'Para que esté disponible escribe el número, o apaga «Disponible».'}</p>}
           <div className="text-sm text-tenue">Tipo de cuenta
             <div className="mt-1"><Opciones etiqueta="Tipo de cuenta" valor={f.tipo} onCambio={(v) => setF({ ...f, tipo: v })}
               opciones={[['ahorro', 'Ahorro'], ['cheques', 'Cheques'], ['billetera', 'Billetera']]} /></div>
@@ -763,22 +797,16 @@ function EditarCuenta({ c, titular, onVolver, onGuardar, onBorrar }: {
       </Carta>
       <Carta>
         <div className="grid gap-4">
-          <Campo etiqueta={f.tipo === 'billetera' ? 'Número de la billetera (celular)' : 'Número de cuenta'}>
-            <input className="campo titulo !text-3xl tracking-wider" inputMode="numeric" autoComplete="off" maxLength={40} value={f.numero}
-              onChange={(e) => setF({ ...f, numero: e.target.value.replace(/[^\d -]/g, '') })} placeholder="0000000000" />
-          </Campo>
-          {f.numero && digitos < 4 && <p className="-mt-2 text-sm text-rojo">Escribe el número completo.</p>}
-          <Campo etiqueta="A nombre de" ayuda="Así aparece el dueño de la cuenta; el cliente lo ve para confirmar antes de enviar.">
+          <Campo etiqueta="A nombre de" ayuda="El cliente lo ve para confirmar antes de enviar.">
             <input className="campo" maxLength={60} value={f.titular} onChange={(e) => setF({ ...f, titular: e.target.value })} placeholder={titular} />
           </Campo>
           <Campo etiqueta="Nota para el cliente (opcional)">
             <input className="campo" maxLength={140} value={f.nota} onChange={(e) => setF({ ...f, nota: e.target.value })} placeholder="Ej. Pon tu nombre en la descripción" />
           </Campo>
-          <Interruptor activo={f.activa} onCambio={(v) => setF({ ...f, activa: v })} etiqueta="Visible para clientes" detalle="Apágala para esconderla sin borrarla." />
         </div>
       </Carta>
-      {onBorrar && <button className="btn btn-linea !text-lg !text-rojo" onClick={() => setBorrar(true)}>Eliminar esta cuenta</button>}
-      {borrar && <Confirmar titulo="¿Eliminar esta cuenta?" texto={`${banco.nombre} · ${f.numero}. Tus clientes ya no la verán.`} si="Sí, eliminar"
+      {onBorrar && <button className="btn btn-linea !text-lg !text-rojo" onClick={() => setBorrar(true)}>Borrar los datos de esta cuenta</button>}
+      {borrar && <Confirmar titulo="¿Borrar esta cuenta?" texto={`${banco.nombre}${f.numero ? ` · ${f.numero}` : ''}. Si solo quieres que los clientes no la vean, apaga «Disponible».`} si="Sí, borrar"
         onNo={() => setBorrar(false)} onSi={() => { setBorrar(false); onBorrar?.(); }} />}
     </Sub>
   );

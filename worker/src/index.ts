@@ -601,7 +601,7 @@ function paginaFacebook(v: unknown) {
 /** Valida la lista de cuentas para transferencias. Devuelve el texto del error si algo no está bien. */
 function normalizarCuentas(v: unknown): Cuenta[] | string {
   if (!Array.isArray(v)) return 'Lista de cuentas no válida.';
-  if (v.length > 12) return 'Puedes poner hasta 12 cuentas.';
+  if (v.length > 40) return 'Puedes poner hasta 40 cuentas.';
   const vistas = new Set<string>();
   const salida: Cuenta[] = [];
   for (const x of v as any[]) {
@@ -609,7 +609,9 @@ function normalizarCuentas(v: unknown): Cuenta[] | string {
     const banco_nombre = limpiarNombre(x?.banco_nombre).slice(0, 40);
     if (banco === 'otro' && banco_nombre.length < 2) return 'Escribe el nombre del banco.';
     const numero = texto(x?.numero, 40).replace(/[^\dA-Za-z -]/g, '').trim();
-    if ((numero.match(/\d/g) ?? []).length < 4) return `Revisa el número de la cuenta${banco_nombre ? ` de ${banco_nombre}` : ''}.`;
+    const activa = x?.activa !== false; // activa = disponible para que los clientes paguen ahí
+    // Una cuenta no disponible puede quedar sin número (por ejemplo, un banco donde aún no hay cuenta)
+    if (activa && (numero.match(/\d/g) ?? []).length < 4) return `Escribe el número de la cuenta${banco_nombre ? ` de ${banco_nombre}` : ''} o márcala como no disponible.`;
     let id = /^[a-z0-9]{4,16}$/.test(String(x?.id ?? '')) ? String(x.id) : aleatorioHex(4);
     if (vistas.has(id)) id = aleatorioHex(4);
     vistas.add(id);
@@ -619,7 +621,7 @@ function normalizarCuentas(v: unknown): Cuenta[] | string {
       moneda: x?.moneda === 'USD' ? 'USD' : 'HNL',
       titular: limpiarNombre(x?.titular).slice(0, 60),
       nota: texto(x?.nota, 140),
-      activa: x?.activa !== false,
+      activa,
     });
   }
   return salida;
