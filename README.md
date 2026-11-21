@@ -9,7 +9,7 @@ Citas en línea para Olimpo Barber. El cliente escanea un QR, elige día y hora,
 - **Cancelar o cambiar hora.** Al liberarse una hora, quienes tienen cita más tarde ese día ven el botón para adelantarla (y reciben aviso por WhatsApp si está conectado).
 - **10 minutos de tolerancia.** Pasado ese tiempo el barbero puede marcar "No llegó".
 - **Recargo para recuperar.** Quien perdió su hora puede tomar otra pagando un recargo (L 50 por defecto).
-- Duración, tolerancia, recargo, horario, barberos y servicios se cambian desde el panel del dueño.
+- Todo se cambia desde el teléfono en **Panel → Configuración**: logo, nombre, datos del negocio, precios, horario, equipo y usuarios con correo.
 
 | Ruta | Para quién | Qué hace |
 |---|---|---|
@@ -17,7 +17,7 @@ Citas en línea para Olimpo Barber. El cliente escanea un QR, elige día y hora,
 | `/agendar` | Cliente | Reserva en 4 pasos |
 | `/c/CODIGO` | Cliente | Su cita: cuenta regresiva, ticket, cancelar, recuperar, avisos por WhatsApp |
 | `/barbero` | Barbero | Entra con PIN. Botones: Llegó, Terminé, No llegó, Pausa. Agrega clientes a mano. Pestaña **Mi QR** con la imagen para estados de WhatsApp. Si es administrador también entra al panel |
-| `/dueno` | Dueño | Entra con código por correo o Face ID. Panel, agenda, ajustes, clientes, WhatsApp, cartel QR |
+| `/dueno` | Dueño | Entra con código por correo o Face ID. Panel, agenda, configuración, clientes, WhatsApp, cartel QR |
 | `/pantalla` | TV | Agenda del día en vivo, solo nombre e inicial |
 | `/privacidad` | Todos | Aviso de privacidad |
 
@@ -121,8 +121,24 @@ Cada cambio en `main` despliega solo: aplica migraciones de D1, publica el Worke
 
 1. Entra a `/dueno` con el correo de `OWNER_EMAIL` y el código que llega por correo.
 2. Toca "Activar Face ID o huella" para no depender del correo.
-3. En **Ajustes** revisa horario y dirección, pon el número de WhatsApp de la barbería y asigna un PIN a cada barbero. Sin PIN, el barbero no puede entrar.
+3. En **Configuración** revisa horario y dirección, pon el número de WhatsApp de la barbería y asigna un PIN a cada barbero. Sin PIN, el barbero no puede entrar.
 4. En **Cartel** imprime el QR.
+
+## Configuración desde el teléfono
+
+En **Panel → Configuración** el dueño, o cualquier administrador, cambia:
+
+| Sección | Qué se cambia |
+|---|---|
+| Aceptar citas nuevas | Abre o cierra la agenda con un toque |
+| Logo y nombre | Sube el logo desde la galería (se achica en el teléfono antes de subir), lo quita para volver al emblema original, nombre del negocio y textos del logo, con vista previa. Se aplica en toda la app, el cartel, el QR para estados, la pestaña del navegador y los mensajes |
+| Datos del negocio | Bienvenida, dirección, enlace de Google Maps, WhatsApp, Instagram, Facebook y TikTok. Aparecen en la página de inicio |
+| Precios y servicios | Precio, nombre y descripción de cada servicio, agregar, esconder, ordenar y eliminar, y el recargo por recuperar. Las citas ya agendadas conservan su precio |
+| Horario y reglas | Días y horas, almuerzo, duración de la cita, tolerancia y anticipación |
+| Equipo | Agregar personas, nombre, apodo, foto, WhatsApp, PIN (temporal o fijo), si atiende clientes, si es administrador, desactivar y eliminar (solo si nunca tuvo citas) |
+| Usuarios con correo | Dar o quitar acceso al panel a otros correos. Si Resend está configurado, les llega un correo con el enlace. Los correos de `OWNER_EMAIL` no se pueden quitar desde aquí |
+
+Un administrador no puede quitarse su propio acceso ni borrarse a sí mismo. Si la API publicada es anterior a esta pantalla, Configuración lo avisa y deja guardar solo lo que esa API entiende.
 
 ## Avisos al personal
 
@@ -155,7 +171,7 @@ Para conectar: crea una app en Meta for Developers con el producto WhatsApp, reg
 - **Barbero**: entra en `/barbero` con su PIN de 6 números.
 - **Administrador**: un barbero marcado como administrador ve además el botón **Panel**. También puede existir un administrador que no atiende clientes: entra con PIN pero no aparece para agendar.
 - **PIN temporal**: quien entra con un PIN marcado como temporal debe crear uno nuevo antes de poder hacer nada más.
-- **Dueño por correo**: sigue disponible con código de Resend y Face ID.
+- **Dueño por correo**: sigue disponible con código de Resend y Face ID. Además de `OWNER_EMAIL`, puede entrar cualquier correo agregado en **Configuración → Usuarios con correo**.
 
 ## Datos y privacidad
 

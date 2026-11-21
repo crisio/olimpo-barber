@@ -6,7 +6,7 @@ import {
 } from '@simplewebauthn/server';
 import {
   Env, utc, ahoraLocal, sumarMin, sumarDias, minutosEntre, sha256, aleatorioHex, hashPin, pinValido,
-  codigoCorto, nombrePublico, normalizarTel, disponibilidad, ESTADOS_VIVOS,
+  codigoCorto, nombrePublico, normalizarTel, disponibilidad, ESTADOS_VIVOS, nombreNegocio,
 } from './lib';
 import { clavesVapid, enviarPush, guardarSuscripcion, notificarPersonal } from './push';
 import { enviarWA, ofrecerHora, procesarEntrante, firmaValida, manejarWebhook, tareasProgramadas, waConfigurado } from './whatsapp';
@@ -27,6 +27,10 @@ app.onError((e, c) => {
   console.error(e);
   return c.json({ error: 'Algo salió mal. Intenta de nuevo.' }, 500);
 });
+
+/** Sube cuando la API gana funciones que la web necesita saber si están publicadas. */
+const VERSION_API = 2;
+const escaparHtml = (t: string) => t.replace(/[&<>"']/g, (x) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[x]!);
 
 const err = (c: C, mensaje: string, estado: 400 | 401 | 403 | 404 | 409 | 429 = 400, extra: object = {}) =>
   c.json({ error: mensaje, ...extra }, estado);
@@ -97,8 +101,14 @@ app.get('/api/barberia', async (c) => {
     // Quiénes pueden entrar con PIN (incluye administradores que no atienden)
     personal: d.barberos.filter((x: any) => x.activo && x.con_pin).map((x: any) => ({ id: x.id, nombre: x.nombre, apodo: x.apodo, pin_digitos: x.pin_digitos })),
     servicios: d.servicios.filter((x: any) => x.activo),
-    proxima_libre: proxima, ahora: ahoraLocal(),
+    proxima_libre: proxima, ahora: ahoraLocal(), version: VERSION_API,
   });
+});
+
+// Nombre y logo del negocio: lo usa cada pantalla para pintar el encabezado
+app.get('/api/marca', async (c) => {
+  const b = await c.env.DB.prepare('SELECT nombre, marca_titulo, marca_subtitulo, logo_key, logo_con_texto FROM barberia WHERE id = 1').first<any>();
+  return c.json({ ...b, version: VERSION_API }, 200, { 'cache-control': 'no-cache' });
 });
 
 app.get('/api/disponibilidad', async (c) => {
@@ -224,7 +234,7 @@ const citaPublica = (env: Env, codigo: string) => env.DB.prepare(
 app.get('/api/citas/:codigo', async (c) => {
   const cita = await citaPublica(c.env, c.req.param('codigo'));
   if (!cita) return err(c, 'No encontramos esa cita.', 404);
-  const b = await c.env.DB.prepare('SELECT nombre, direccion, whatsapp_numero, tolerancia_min, recargo_l, dias_anticipacion, horario FROM barberia WHERE id = 1').first<any>();
+  const b = await c.env.DB.prepare('SELECT nombre, direccion, mapa_url, whatsapp_numero, tolerancia_min, recargo_l, dias_anticipacion, horario FROM barberia WHERE id = 1').first<any>();
   b.horario = JSON.parse(b.horario);
   const { _id, ...resto } = cita;
   return c.json({ cita: { ...resto, servicios: JSON.parse(cita.servicios) }, barberia: b, ahora: ahoraLocal() });
@@ -293,6 +303,7 @@ app.post('/api/auth/codigo', async (c) => {
     await c.env.DB.prepare('INSERT OR REPLACE INTO codigos_login (email, codigo_hash, expira_en) VALUES (?,?,?)')
       .bind(email, await sha256(`${email}:${codigo}`), new Date(Date.now() + 10 * 60e3).toISOString()).run();
     if (c.env.RESEND_API_KEY) {
+      const negocio = escaparHtml((await nombreNegocio(c.env)));
       const enviar = (contenido: object) => fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { authorization: `Bearer ${c.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
@@ -306,7 +317,7 @@ app.post('/api/auth/codigo', async (c) => {
         if (r) console.error('Resend plantilla', r.status, await r.text());
         r = await enviar({
           subject: `${codigo} es tu código de TurnoYa`,
-          html: `<div style="font-family:sans-serif;max-width:420px"><h2>TurnoYa · Olimpo Barber Club</h2><p>Tu código para entrar es:</p><p style="font-size:34px;letter-spacing:6px;font-weight:700">${codigo}</p><p>Vence en 10 minutos. Si no lo pediste, ignora este correo.</p></div>`,
+          html: `<div style="font-family:sans-serif;max-width:420px"><h2>TurnoYa · ${negocio}</h2><p>Tu código para entrar es:</p><p style="font-size:34px;letter-spacing:6px;font-weight:700">${codigo}</p><p>Vence en 10 minutos. Si no lo pediste, ignora este correo.</p></div>`,
         });
         if (!r.ok) console.error('Resend', r.status, await r.text());
       }
@@ -405,7 +416,7 @@ app.post('/api/auth/passkey/registro/opciones', dueno, async (c) => {
   const u = await c.env.DB.prepare('SELECT * FROM usuarios WHERE id = ?').bind(s.usuario_id).first<any>();
   const ya = (await c.env.DB.prepare('SELECT id FROM passkeys WHERE usuario_id = ?').bind(u.id).all<any>()).results;
   const opciones = await generateRegistrationOptions({
-    rpName: 'TurnoYa · Olimpo Barber Club', rpID: c.env.RP_ID, userName: u.email,
+    rpName: `TurnoYa · ${await nombreNegocio(c.env)}`, rpID: c.env.RP_ID, userName: u.email,
     userID: new TextEncoder().encode(String(u.id)) as Uint8Array<ArrayBuffer>, attestationType: 'none',
     excludeCredentials: ya.map((p) => ({ id: p.id })),
     authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
@@ -555,53 +566,158 @@ app.post('/api/bloqueos', personal, async (c) => {
 });
 
 // ---------- Dueño: configuración ----------
-app.get('/api/config', dueno, async (c) => c.json(await datosBarberia(c.env)));
+app.get('/api/config', dueno, async (c) => c.json({ ...(await datosBarberia(c.env)), version: VERSION_API }));
 
+const texto = (v: unknown, max: number) => String(v ?? '').replace(/[<>\r]/g, '').replace(/[ \t]+/g, ' ').trim().slice(0, max);
+
+/** Usuario de Instagram o TikTok: acepta "@usuario", "usuario" o el enlace del perfil. */
+function usuarioRed(v: unknown) {
+  let t = texto(v, 200);
+  if (!t) return null;
+  const m = t.match(/(?:instagram\.com|tiktok\.com)\/@?([A-Za-z0-9._]+)/i);
+  if (m) t = m[1];
+  t = t.replace(/^@/, '');
+  return /^[A-Za-z0-9._]{1,40}$/.test(t) ? t : undefined;
+}
+/** Página de Facebook: el nombre de la página o el enlace completo. */
+function paginaFacebook(v: unknown) {
+  let t = texto(v, 300);
+  if (!t) return null;
+  if (/^(https?:\/\/)?([a-z]+\.)?(facebook\.com|fb\.com|fb\.me)\//i.test(t)) return t.replace(/^(https?:\/\/)?/i, 'https://');
+  t = t.replace(/^@/, '');
+  return /^[A-Za-z0-9.\-]{2,80}$/.test(t) ? t : undefined;
+}
+/** Enlace de Google Maps (o cualquier https). */
+function enlace(v: unknown) {
+  const t = texto(v, 500);
+  if (!t) return null;
+  try { const u = new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`); return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : undefined; }
+  catch { return undefined; }
+}
+
+// Solo cambia los datos que vienen en el cuerpo; así cada sección del panel guarda lo suyo.
 app.put('/api/barberia', dueno, async (c) => {
   const d = await cuerpo(c);
-  const horario: Record<string, [string, string] | null> = {};
-  for (let i = 0; i < 7; i++) {
-    const r = d.horario?.[i];
-    horario[i] = Array.isArray(r) && /^\d{2}:\d{2}$/.test(r[0]) && /^\d{2}:\d{2}$/.test(r[1]) && r[0] < r[1] ? [r[0], r[1]] : null;
-  }
+  const tiene = (k: string) => Object.prototype.hasOwnProperty.call(d, k);
+  const cols: string[] = [], vals: unknown[] = [];
+  const poner = (col: string, v: unknown) => { cols.push(`${col} = ?`); vals.push(v); };
   const entero = (v: unknown, min: number, max: number, def: number) => Math.min(max, Math.max(min, Math.round(Number(v)) || def));
-  await c.env.DB.prepare(
-    `UPDATE barberia SET nombre = ?, direccion = ?, whatsapp_numero = ?, horario = ?, duracion_cita_min = ?,
-       tolerancia_min = ?, recargo_l = ?, dias_anticipacion = ?, agenda_abierta = ?, anticipacion_min = ?, almuerzo = ? WHERE id = 1`)
-    .bind(limpiarNombre(d.nombre) || 'Olimpo Barber Club', String(d.direccion ?? '').slice(0, 160), normalizarTel(d.whatsapp_numero),
-      JSON.stringify(horario), entero(d.duracion_cita_min, 15, 180, 60), entero(d.tolerancia_min, 0, 60, 10),
-      Math.max(0, Math.round(Number(d.recargo_l)) || 0), entero(d.dias_anticipacion, 1, 60, 14), d.agenda_abierta ? 1 : 0,
-      Math.min(1440, Math.max(0, Math.round(Number(d.anticipacion_min)) || 0)),
-      Array.isArray(d.almuerzo) && hhmm(d.almuerzo[0]) && hhmm(d.almuerzo[1]) && d.almuerzo[0] < d.almuerzo[1] ? JSON.stringify([d.almuerzo[0], d.almuerzo[1]]) : null).run();
+
+  if (tiene('nombre')) {
+    const n = limpiarNombre(d.nombre);
+    if (n.length < 2) return err(c, 'Escribe el nombre del negocio.');
+    poner('nombre', n);
+  }
+  if (tiene('marca_titulo')) poner('marca_titulo', limpiarNombre(d.marca_titulo).slice(0, 24));
+  if (tiene('marca_subtitulo')) poner('marca_subtitulo', limpiarNombre(d.marca_subtitulo).slice(0, 32));
+  if (tiene('logo_con_texto')) poner('logo_con_texto', d.logo_con_texto ? 1 : 0);
+  if (tiene('descripcion')) poner('descripcion', texto(d.descripcion, 300));
+  if (tiene('direccion')) poner('direccion', texto(d.direccion, 160));
+  if (tiene('whatsapp_numero')) {
+    const t = d.whatsapp_numero ? normalizarTel(String(d.whatsapp_numero)) : null;
+    if (d.whatsapp_numero && !t) return err(c, 'Revisa el WhatsApp de la barbería (8 dígitos).');
+    poner('whatsapp_numero', t);
+  }
+  if (tiene('mapa_url')) {
+    const u = enlace(d.mapa_url);
+    if (u === undefined) return err(c, 'Revisa el enlace del mapa. Cópialo desde Google Maps → Compartir.');
+    poner('mapa_url', u);
+  }
+  if (tiene('instagram')) {
+    const u = usuarioRed(d.instagram);
+    if (u === undefined) return err(c, 'Revisa el usuario de Instagram.');
+    poner('instagram', u);
+  }
+  if (tiene('tiktok')) {
+    const u = usuarioRed(d.tiktok);
+    if (u === undefined) return err(c, 'Revisa el usuario de TikTok.');
+    poner('tiktok', u);
+  }
+  if (tiene('facebook')) {
+    const u = paginaFacebook(d.facebook);
+    if (u === undefined) return err(c, 'Revisa la página de Facebook.');
+    poner('facebook', u);
+  }
+  if (tiene('horario')) {
+    const horario: Record<string, [string, string] | null> = {};
+    for (let i = 0; i < 7; i++) {
+      const r = d.horario?.[i];
+      horario[i] = Array.isArray(r) && hhmm(r[0]) && hhmm(r[1]) && r[0] < r[1] ? [r[0], r[1]] : null;
+    }
+    poner('horario', JSON.stringify(horario));
+  }
+  if (tiene('almuerzo')) {
+    poner('almuerzo', Array.isArray(d.almuerzo) && hhmm(d.almuerzo[0]) && hhmm(d.almuerzo[1]) && d.almuerzo[0] < d.almuerzo[1]
+      ? JSON.stringify([d.almuerzo[0], d.almuerzo[1]]) : null);
+  }
+  if (tiene('duracion_cita_min')) poner('duracion_cita_min', entero(d.duracion_cita_min, 15, 180, 60));
+  if (tiene('tolerancia_min')) poner('tolerancia_min', entero(d.tolerancia_min, 0, 60, 10));
+  if (tiene('recargo_l')) poner('recargo_l', Math.min(100000, Math.max(0, Math.round(Number(d.recargo_l)) || 0)));
+  if (tiene('dias_anticipacion')) poner('dias_anticipacion', entero(d.dias_anticipacion, 1, 60, 14));
+  if (tiene('anticipacion_min')) poner('anticipacion_min', Math.min(1440, Math.max(0, Math.round(Number(d.anticipacion_min)) || 0)));
+  if (tiene('agenda_abierta')) poner('agenda_abierta', d.agenda_abierta ? 1 : 0);
+
+  if (cols.length) await c.env.DB.prepare(`UPDATE barberia SET ${cols.join(', ')} WHERE id = 1`).bind(...vals).run();
   return c.json({ ok: true });
 });
 
 app.post('/api/barberos', dueno, async (c) => {
+  const s = c.get('sesion');
   const d = await cuerpo(c);
   const nombre = limpiarNombre(d.nombre);
-  if (!nombre) return err(c, 'Escribe el nombre del barbero.');
+  if (nombre.length < 2) return err(c, 'Escribe el nombre.');
   const pinTexto = d.pin ? String(d.pin) : '';
   if (pinTexto && !/^\d{6}$/.test(pinTexto)) return err(c, 'El PIN debe tener 6 números.');
   const admin = d.es_admin ? 1 : 0;
-  const actual = d.id ? await c.env.DB.prepare('SELECT pin_digitos, pin_hash FROM barberos WHERE id = ?').bind(Number(d.id)).first<any>() : null;
+  const id = Number(d.id) || null;
+  const yoMismo = !!id && id === s.barbero_id;
+  // Un PIN fácil solo se acepta como temporal (la persona lo cambia al entrar)
+  if (pinTexto && (!d.pin_temporal || yoMismo) && (PINES_OBVIOS.has(pinTexto) || /^(\d)\1+$/.test(pinTexto)))
+    return err(c, 'Ese PIN es muy fácil de adivinar. Elige otro o márcalo como temporal.');
+  if (yoMismo && (!admin || d.activo === false)) return err(c, 'No puedes quitarte tu propio acceso de administrador.');
+  const actual = id ? await c.env.DB.prepare('SELECT pin_digitos, pin_hash FROM barberos WHERE id = ?').bind(id).first<any>() : null;
+  if (id && !actual) return err(c, 'Esa persona ya no existe.', 404);
   const digitos = pinTexto ? pinTexto.length : actual?.pin_hash ? actual.pin_digitos : 0;
-  if (admin && digitos !== 6) return err(c, 'Un administrador necesita un PIN de 6 números. Escríbele uno nuevo.');
+  if (admin && digitos !== 6) return err(c, 'Un administrador necesita un PIN de 6 números. Escríbele uno.');
   const pin = pinTexto ? await hashPin(pinTexto) : null;
+  // PIN temporal: quien lo recibe debe crear uno propio al entrar (no aplica a tu propio PIN)
+  const temporal = pin && d.pin_temporal && !yoMismo ? 1 : 0;
   const apodo = limpiarNombre(d.apodo) || null;
-  const telBarbero = d.telefono ? normalizarTel(d.telefono) : null;
-  if (d.telefono && !telBarbero) return err(c, 'Revisa el WhatsApp del barbero (8 dígitos).');
-  if (d.id) {
+  const telBarbero = d.telefono ? normalizarTel(String(d.telefono)) : null;
+  if (d.telefono && !telBarbero) return err(c, 'Revisa el WhatsApp (8 dígitos).');
+  if (id) {
     await c.env.DB.prepare(
-      `UPDATE barberos SET nombre = ?, apodo = ?, orden = ?, activo = ?, es_admin = ?, atiende = ?, telefono = ?, pin_hash = COALESCE(?, pin_hash),
-         pin_digitos = COALESCE(?, pin_digitos) WHERE id = ?`)
-      .bind(nombre, apodo, Number(d.orden) || 0, d.activo === false ? 0 : 1, admin, d.atiende === false ? 0 : 1, telBarbero, pin, pin ? pinTexto.length : null, Number(d.id)).run();
+      `UPDATE barberos SET nombre = ?, apodo = ?, activo = ?, es_admin = ?, atiende = ?, telefono = ?, pin_hash = COALESCE(?, pin_hash),
+         pin_digitos = COALESCE(?, pin_digitos), debe_cambiar_pin = CASE WHEN ? IS NULL THEN debe_cambiar_pin ELSE ? END WHERE id = ?`)
+      .bind(nombre, apodo, d.activo === false ? 0 : 1, admin, d.atiende === false ? 0 : 1, telBarbero, pin, pin ? pinTexto.length : null,
+        pin, temporal, id).run();
     // Al cambiar PIN o permisos se cierran sus sesiones, salvo la de quien está haciendo el cambio
     const mia = await sha256(c.req.header('authorization')!.replace(/^Bearer /, ''));
-    await c.env.DB.prepare('DELETE FROM sesiones WHERE barbero_id = ? AND token_hash != ?').bind(Number(d.id), mia).run();
-  } else {
-    await c.env.DB.prepare('INSERT INTO barberos (nombre, apodo, orden, pin_hash, pin_digitos, es_admin, atiende, telefono) VALUES (?,?,?,?,?,?,?,?)')
-      .bind(nombre, apodo, Number(d.orden) || 0, pin, 6, admin, d.atiende === false ? 0 : 1, telBarbero).run();
+    await c.env.DB.prepare('DELETE FROM sesiones WHERE barbero_id = ? AND token_hash != ?').bind(id, mia).run();
+    return c.json({ ok: true, id });
   }
+  const r = await c.env.DB.prepare(
+    `INSERT INTO barberos (nombre, apodo, orden, pin_hash, pin_digitos, es_admin, atiende, telefono, debe_cambiar_pin)
+     VALUES (?, ?, (SELECT COALESCE(MAX(orden), 0) + 1 FROM barberos), ?, 6, ?, ?, ?, ?)`)
+    .bind(nombre, apodo, pin, admin, d.atiende === false ? 0 : 1, telBarbero, temporal).run();
+  return c.json({ ok: true, id: r.meta.last_row_id });
+});
+
+// Borrar a alguien del equipo: solo si nunca tuvo citas; si las tuvo, se desactiva.
+app.delete('/api/barberos/:id', dueno, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (id === c.get('sesion').barbero_id) return err(c, 'No puedes borrarte a ti mismo.');
+  const b = await c.env.DB.prepare('SELECT id, foto_key FROM barberos WHERE id = ?').bind(id).first<any>();
+  if (!b) return err(c, 'Esa persona ya no existe.', 404);
+  const citas = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM citas WHERE barbero_id = ?').bind(id).first<any>();
+  if (citas.n) return err(c, `Tiene ${citas.n} cita${citas.n === 1 ? '' : 's'} en el historial. Desactívalo para que ya no aparezca ni pueda entrar.`, 409);
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM bloqueos WHERE barbero_id = ?').bind(id),
+    c.env.DB.prepare('DELETE FROM sesiones WHERE barbero_id = ?').bind(id),
+    c.env.DB.prepare('DELETE FROM suscripciones_push WHERE barbero_id = ?').bind(id),
+    c.env.DB.prepare('DELETE FROM barberos WHERE id = ?').bind(id),
+  ]);
+  if (b.foto_key) await c.env.ARCHIVOS?.delete(b.foto_key).catch(() => {});
   return c.json({ ok: true });
 });
 
@@ -609,31 +725,134 @@ app.post('/api/servicios', dueno, async (c) => {
   const d = await cuerpo(c);
   const nombre = limpiarNombre(d.nombre);
   const precio = Math.round(Number(d.precio_l));
-  if (!nombre || !(precio >= 0)) return err(c, 'Escribe nombre y precio.');
-  const desc = String(d.descripcion ?? '').slice(0, 120);
-  if (d.id) {
-    await c.env.DB.prepare('UPDATE servicios SET nombre = ?, descripcion = ?, precio_l = ?, orden = ?, activo = ? WHERE id = ?')
-      .bind(nombre, desc, precio, Number(d.orden) || 0, d.activo === false ? 0 : 1, Number(d.id)).run();
-  } else {
-    await c.env.DB.prepare('INSERT INTO servicios (nombre, descripcion, precio_l, orden) VALUES (?,?,?,?)').bind(nombre, desc, precio, Number(d.orden) || 0).run();
+  if (nombre.length < 2) return err(c, 'Escribe el nombre del servicio.');
+  if (d.precio_l === '' || d.precio_l === null || !Number.isFinite(precio) || precio < 0 || precio > 100000) return err(c, 'Escribe un precio válido en lempiras.');
+  const desc = texto(d.descripcion, 120);
+  const id = Number(d.id) || null;
+  if (id) {
+    if (d.activo === false && (await ultimoServicio(c, id))) return err(c, 'Debe quedar al menos un servicio visible.');
+    await c.env.DB.prepare('UPDATE servicios SET nombre = ?, descripcion = ?, precio_l = ?, activo = ? WHERE id = ?')
+      .bind(nombre, desc, precio, d.activo === false ? 0 : 1, id).run();
+    return c.json({ ok: true, id });
   }
+  const r = await c.env.DB.prepare('INSERT INTO servicios (nombre, descripcion, precio_l, orden) VALUES (?, ?, ?, (SELECT COALESCE(MAX(orden), 0) + 1 FROM servicios))')
+    .bind(nombre, desc, precio).run();
+  return c.json({ ok: true, id: r.meta.last_row_id });
+});
+
+/** ¿Es el único servicio visible? Sin servicios los clientes no pueden agendar. */
+async function ultimoServicio(c: C, id: number) {
+  const r = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM servicios WHERE activo = 1 AND id != ?').bind(id).first<any>();
+  const este = await c.env.DB.prepare('SELECT activo FROM servicios WHERE id = ?').bind(id).first<any>();
+  return !!este?.activo && r.n === 0;
+}
+
+// Las citas guardan su propia copia de servicio y precio, así que borrar un servicio no cambia el historial.
+app.delete('/api/servicios/:id', dueno, async (c) => {
+  const id = Number(c.req.param('id'));
+  if (await ultimoServicio(c, id)) return err(c, 'Debe quedar al menos un servicio visible.');
+  await c.env.DB.prepare('DELETE FROM servicios WHERE id = ?').bind(id).run();
   return c.json({ ok: true });
 });
 
-// Foto de barbero o logo en R2
+// Mover un servicio o una persona del equipo arriba o abajo en la lista
+app.post('/api/orden', dueno, async (c) => {
+  const d = await cuerpo(c);
+  const tabla = d.tipo === 'barberos' ? 'barberos' : d.tipo === 'servicios' ? 'servicios' : null;
+  const ids = Array.isArray(d.ids) ? d.ids.map(Number).filter(Boolean).slice(0, 200) : [];
+  if (!tabla || !ids.length) return err(c, 'Datos incompletos.');
+  await c.env.DB.batch(ids.map((id: number, i: number) => c.env.DB.prepare(`UPDATE ${tabla} SET orden = ? WHERE id = ?`).bind(i + 1, id)));
+  return c.json({ ok: true });
+});
+
+// Foto de barbero o logo en R2. La web reduce la imagen en el teléfono antes de subirla.
 app.post('/api/archivos', dueno, async (c) => {
-  if (!c.env.ARCHIVOS) return err(c, 'El almacenamiento R2 no está configurado.');
-  const tipo = c.req.header('content-type') ?? '';
+  if (!c.env.ARCHIVOS) return err(c, 'El almacenamiento de imágenes (R2) no está configurado.');
+  const tipo = (c.req.header('content-type') ?? '').split(';')[0].trim();
   const ext = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' } as Record<string, string>)[tipo];
   if (!ext) return err(c, 'Sube una imagen JPG, PNG o WebP.');
   const datos = await c.req.arrayBuffer();
+  if (!datos.byteLength) return err(c, 'La imagen está vacía.');
   if (datos.byteLength > 2 * 1024 * 1024) return err(c, 'La imagen pesa más de 2 MB.');
   const barbero = Number(c.req.query('barbero')) || null;
+  const antes = barbero
+    ? await c.env.DB.prepare('SELECT foto_key AS k FROM barberos WHERE id = ?').bind(barbero).first<any>()
+    : await c.env.DB.prepare('SELECT logo_key AS k FROM barberia WHERE id = 1').first<any>();
+  if (barbero && !antes) return err(c, 'Esa persona ya no existe.', 404);
   const clave = `${barbero ? `barberos/${barbero}` : 'logo'}-${aleatorioHex(4)}.${ext}`;
   await c.env.ARCHIVOS.put(clave, datos, { httpMetadata: { contentType: tipo } });
   if (barbero) await c.env.DB.prepare('UPDATE barberos SET foto_key = ? WHERE id = ?').bind(clave, barbero).run();
   else await c.env.DB.prepare('UPDATE barberia SET logo_key = ? WHERE id = 1').bind(clave).run();
+  if (antes?.k) await c.env.ARCHIVOS.delete(antes.k).catch(() => {});
   return c.json({ clave });
+});
+
+// Quitar el logo subido (vuelve el emblema original) o la foto de un barbero
+app.delete('/api/archivos', dueno, async (c) => {
+  const barbero = Number(c.req.query('barbero')) || null;
+  const antes = barbero
+    ? await c.env.DB.prepare('SELECT foto_key AS k FROM barberos WHERE id = ?').bind(barbero).first<any>()
+    : await c.env.DB.prepare('SELECT logo_key AS k FROM barberia WHERE id = 1').first<any>();
+  if (barbero) await c.env.DB.prepare('UPDATE barberos SET foto_key = NULL WHERE id = ?').bind(barbero).run();
+  else await c.env.DB.prepare('UPDATE barberia SET logo_key = NULL WHERE id = 1').run();
+  if (antes?.k) await c.env.ARCHIVOS?.delete(antes.k).catch(() => {});
+  return c.json({ ok: true });
+});
+
+// ---------- Dueño: usuarios que entran con correo ----------
+app.get('/api/usuarios', dueno, async (c) => {
+  const s = c.get('sesion');
+  const principales = emailsDueno(c.env);
+  const filas = (await c.env.DB.prepare(
+    `SELECT u.id, u.email, u.nombre, u.creado_en, (SELECT COUNT(*) FROM passkeys p WHERE p.usuario_id = u.id) AS passkeys
+     FROM usuarios u ORDER BY u.id`).all<any>()).results;
+  const usuarios = filas.map((u) => ({ ...u, principal: principales.includes(u.email), yo: u.id === s.usuario_id }));
+  // Correos principales que aún no han entrado nunca
+  for (const email of principales) if (!filas.some((u) => u.email === email)) usuarios.unshift({ id: null, email, nombre: null, creado_en: null, passkeys: 0, principal: true, yo: false });
+  return c.json({ usuarios });
+});
+
+app.post('/api/usuarios', dueno, async (c) => {
+  const d = await cuerpo(c);
+  const email = String(d.email ?? '').toLowerCase().trim();
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email) || email.length > 120) return err(c, 'Escribe un correo válido.');
+  const nombre = limpiarNombre(d.nombre) || null;
+  const ya = await c.env.DB.prepare('SELECT id FROM usuarios WHERE email = ?').bind(email).first<any>();
+  if (ya) {
+    await c.env.DB.prepare('UPDATE usuarios SET nombre = ? WHERE id = ?').bind(nombre, ya.id).run();
+    return c.json({ ok: true, id: ya.id, invitado: false });
+  }
+  const r = await c.env.DB.prepare('INSERT INTO usuarios (email, nombre, creado_en) VALUES (?, ?, ?)').bind(email, nombre, utc()).run();
+  let invitado = false;
+  if (c.env.RESEND_API_KEY) {
+    const n = (await c.env.DB.prepare('SELECT nombre FROM barberia WHERE id = 1').first<any>())?.nombre ?? 'la barbería';
+    const web = (c.env.WEB_URL ?? origenes(c.env)[0]).replace(/\/$/, '');
+    const r2 = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${c.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        from: c.env.RESEND_FROM, to: [email], subject: `Tienes acceso al panel de ${n}`,
+        html: `<div style="font-family:sans-serif;max-width:420px"><h2>${escaparHtml(n)}</h2><p>Hola${nombre ? ` ${escaparHtml(nombre)}` : ''}, ya puedes entrar al panel del dueño.</p><p><a href="${web}/dueno" style="display:inline-block;background:#e23a3a;color:#fff;padding:12px 18px;border-radius:10px;text-decoration:none;font-weight:700">Entrar al panel</a></p><p>Escribe este correo y te llegará un código de 6 números.</p></div>`,
+      }),
+    }).catch(() => null);
+    invitado = !!r2?.ok;
+  }
+  return c.json({ ok: true, id: r.meta.last_row_id, invitado });
+});
+
+app.delete('/api/usuarios/:id', dueno, async (c) => {
+  const id = Number(c.req.param('id'));
+  const u = await c.env.DB.prepare('SELECT id, email FROM usuarios WHERE id = ?').bind(id).first<any>();
+  if (!u) return err(c, 'Ese usuario ya no existe.', 404);
+  if (id === c.get('sesion').usuario_id) return err(c, 'No puedes quitarte a ti mismo.');
+  if (emailsDueno(c.env).includes(u.email)) return err(c, 'Este es el correo principal del dueño y no se puede quitar desde aquí.', 409);
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM passkeys WHERE usuario_id = ?').bind(id),
+    c.env.DB.prepare('DELETE FROM sesiones WHERE usuario_id = ?').bind(id),
+    c.env.DB.prepare('DELETE FROM codigos_login WHERE email = ?').bind(u.email),
+    c.env.DB.prepare('DELETE FROM usuarios WHERE id = ?').bind(id),
+  ]);
+  return c.json({ ok: true });
 });
 
 // ---------- Dueño: métricas y clientes ----------
@@ -741,7 +960,7 @@ app.post('/api/whatsapp/prueba', dueno, async (c) => {
   const d = await cuerpo(c);
   const tel = normalizarTel(d.telefono);
   if (!tel) return err(c, 'Revisa el número (8 dígitos).');
-  const estado = await enviarWA(c.env, tel, String(d.texto || 'Prueba de TurnoYa · Olimpo Barber Club ✂️').slice(0, 500), { tipo: 'prueba' });
+  const estado = await enviarWA(c.env, tel, String(d.texto || `Prueba de TurnoYa · ${await nombreNegocio(c.env)} ✂️`).slice(0, 500), { tipo: 'prueba' });
   return c.json({ estado });
 });
 app.post('/api/whatsapp/simular', dueno, async (c) => {

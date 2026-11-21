@@ -1,5 +1,11 @@
 import { Env, utc, RE_CODIGO, fechaTexto, normalizarTel } from './lib';
 
+/** Nombre del negocio y minutos de tolerancia, como los dejó el dueño en Configuración. */
+async function negocio(env: Env) {
+  const b = await env.DB.prepare('SELECT nombre, tolerancia_min FROM barberia WHERE id = 1').first<any>();
+  return { nombre: (b?.nombre as string) ?? 'la barbería', tolerancia: (b?.tolerancia_min as number) ?? 10 };
+}
+
 export const waConfigurado = (env: Env) => !!(env.WA_TOKEN && env.WA_PHONE_ID);
 
 async function registrar(env: Env, m: { direccion: string; telefono: string; texto: string; tipo?: string;
@@ -73,14 +79,15 @@ export async function procesarEntrante(env: Env, telefonoCrudo: string, texto: s
       await env.DB.prepare('UPDATE clientes SET consentimiento = 0 WHERE id = ?').bind(cli.id).run();
       await enviarWA(env, telefono, 'Listo, ya no te enviaremos avisos. Escribe cuando quieras para reactivarlos.', { tipo: 'baja' });
     } else {
-      await enviarWA(env, telefono, 'Hola 👋 Somos Olimpo Barber Club. Para recibir avisos de tu cita envíanos el código de 5 letras que te dio TurnoYa.', { tipo: 'ayuda' });
+      await enviarWA(env, telefono, `Hola 👋 Somos ${(await negocio(env)).nombre}. Para recibir avisos de tu cita envíanos el código de 5 letras que te dio TurnoYa.`, { tipo: 'ayuda' });
     }
     return { vinculada: false };
   }
   await env.DB.prepare('UPDATE citas SET telefono = ?, cliente_id = ? WHERE id = ?').bind(telefono, cli.id, cita.id).run();
   await env.DB.prepare(`UPDATE clientes SET nombre = ? WHERE id = ? AND nombre = 'Cliente'`).bind(cita.nombre, cli.id).run();
+  const n = await negocio(env);
   await enviarWA(env, telefono,
-    `¡Listo, ${cita.nombre.split(' ')[0]}! Te avisaremos por aquí. Tu cita en Olimpo Barber Club es ${fechaTexto(cita.inicio)} con ${cita.barbero}. Llega puntual: hay 10 min de tolerancia.`,
+    `¡Listo, ${cita.nombre.split(' ')[0]}! Te avisaremos por aquí. Tu cita en ${n.nombre} es ${fechaTexto(cita.inicio)} con ${cita.barbero}. Llega puntual: hay ${n.tolerancia} min de tolerancia.`,
     { cita_id: cita.id, tipo: 'confirmacion' });
   return { vinculada: true, codigo: cita.codigo };
 }
@@ -95,7 +102,7 @@ export async function ofrecerHora(env: Env, inicio: string, ahora: string) {
   const enlace = (codigo: string) => (env.WEB_URL ? ` ${env.WEB_URL.replace(/\/$/, '')}/c/${codigo}` : '');
   for (const c of citas) {
     await enviarWA(env, c.telefono,
-      `${c.nombre.split(' ')[0]}, se liberó una hora en Olimpo Barber Club: ${fechaTexto(inicio)}. Si quieres adelantar tu cita, ábrela y toca "Cambiar hora".${enlace(c.codigo)} La toma el primero que la elija.`,
+      `${c.nombre.split(' ')[0]}, se liberó una hora en ${(await negocio(env)).nombre}: ${fechaTexto(inicio)}. Si quieres adelantar tu cita, ábrela y toca "Cambiar hora".${enlace(c.codigo)} La toma el primero que la elija.`,
       { cita_id: c.id, tipo: 'hora_libre' });
   }
 }
@@ -139,13 +146,14 @@ export async function tareasProgramadas(env: Env, ahora: string, limite: string,
      FROM citas c JOIN barberos b ON b.id = c.barbero_id LEFT JOIN clientes k ON k.id = c.cliente_id
      WHERE c.estado = 'agendada' AND c.recordatorio_enviado = 0 AND c.telefono IS NOT NULL
        AND c.inicio > ? AND c.inicio <= ?`).bind(ahora, limite).all<any>()).results;
+  const n = citas.length ? await negocio(env) : null!;
   for (const c of citas) {
     await env.DB.prepare('UPDATE citas SET recordatorio_enviado = 1 WHERE id = ?').bind(c.id).run();
     if (c.consentimiento === 0) continue;
     const nombre = c.nombre.split(' ')[0];
     const cuando = fechaTexto(c.inicio);
     await enviarWA(env, c.telefono,
-      `${nombre}, tu cita en Olimpo Barber Club es ${cuando} con ${c.barbero}. Llega puntual: después de 10 min se pierde la hora.`,
+      `${nombre}, tu cita en ${n.nombre} es ${cuando} con ${c.barbero}. Llega puntual: después de ${n.tolerancia} min se pierde la hora.`,
       { cita_id: c.id, tipo: 'recordatorio',
         plantilla: env.WA_PLANTILLA_RECORDATORIO ? { nombre: env.WA_PLANTILLA_RECORDATORIO, parametros: [nombre, cuando, c.barbero] } : undefined });
   }

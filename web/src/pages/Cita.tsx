@@ -125,7 +125,8 @@ export default function Cita() {
           {c.recargo_l > 0 && (<><dt className="text-tenue">Recargo</dt><dd className="text-right font-semibold">{L(c.recargo_l)}</dd></>)}
           <dt className="text-tenue">Total</dt><dd className="titulo text-right text-3xl">{L(c.total_l)}</dd>
         </dl>
-        <p className="mt-3 text-sm text-tenue">{b.nombre} · {b.direccion}</p>
+        <p className="mt-3 text-sm text-tenue">{b.nombre} · {b.direccion}{b.direccion && (<>{' · '}<a className="underline" target="_blank" rel="noopener noreferrer"
+          href={b.mapa_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${b.nombre}, ${b.direccion}`)}`}>Cómo llegar</a></>)}</p>
         {qr && ['agendada', 'en_atencion'].includes(c.estado) && (
           <div className="mt-3 flex items-center gap-3 border-t-2 border-dashed border-borde pt-3">
             <img src={qr} alt={`Código QR de la cita ${c.codigo}`} className="h-24 w-24 rounded-lg bg-white p-1" />

@@ -1,29 +1,66 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { DEMO, api, diaCorto, diaTexto, hora12, sumarDias } from './api';
 import { EMBLEMA } from './emblema';
+import { Marca, urlArchivo, useMarca } from './marca';
 
 export const Emblema = ({ className = '' }: { className?: string }) => (
   <svg viewBox="0 0 400 175" className={className} aria-hidden="true" dangerouslySetInnerHTML={{ __html: EMBLEMA }} />
 );
 
-/** Logo de Olimpo Barber Club: emblema con casco griego, laureles y navaja, y el nombre en serif. */
-export function Logo({ grande = false }: { grande?: boolean }) {
-  const raya = <span className="h-px w-6 bg-current opacity-70" aria-hidden="true" />;
+/** Tamaño del texto grande del logo según su largo, para que un nombre largo no se salga. */
+const tamTitulo = (t: string, grande: boolean) => {
+  const n = t.length;
+  if (grande) return n <= 8 ? 'text-6xl' : n <= 12 ? 'text-5xl' : n <= 18 ? 'text-4xl' : 'text-3xl';
+  return n <= 8 ? 'text-3xl' : n <= 14 ? 'text-2xl' : 'text-xl';
+};
+
+/**
+ * Logo del negocio: la imagen que subió el dueño (o el emblema original de Olimpo con casco, laureles y navaja)
+ * y el nombre en serif. Se configura en Configuración → Logo y nombre. `marca` sirve para la vista previa.
+ */
+export function Logo({ grande = false, marca }: { grande?: boolean; marca?: Marca }) {
+  const guardada = useMarca();
+  const m = marca ?? guardada;
+  const url = urlArchivo(m.logo_key);
+  const titulo = m.marca_titulo || m.nombre;
+  const sub = m.marca_titulo ? m.marca_subtitulo : '';
+  const conTexto = !url || !!m.logo_con_texto;
+  const raya = <span className="h-px w-6 shrink-0 bg-current opacity-70" aria-hidden="true" />;
+  const imagen = url
+    ? <img src={url} alt="" className={grande ? `${conTexto ? 'max-h-48' : 'max-h-64'} w-auto max-w-[16rem] object-contain` : 'h-12 w-auto max-w-[6rem] object-contain'} />
+    : <Emblema className={grande ? 'w-64' : 'h-12 w-auto'} />;
   if (grande) return (
-    <div className="flex flex-col items-center text-center" role="img" aria-label="Olimpo Barber Club">
-      <Emblema className="w-64" />
-      <div className="marca -mt-1 text-6xl">OLIMPO</div>
-      <div className="marca mt-1 flex items-center gap-3 text-lg tracking-[.3em]">{raya}BARBER CLUB{raya}</div>
+    <div className="flex flex-col items-center text-center" role="img" aria-label={m.nombre}>
+      {imagen}
+      {conTexto && <div className={`marca ${url ? 'mt-2' : '-mt-1'} max-w-full break-words ${tamTitulo(titulo, true)}`}>{titulo}</div>}
+      {conTexto && sub && <div className="marca mt-1 flex items-center gap-3 text-lg tracking-[.3em]">{raya}{sub}{raya}</div>}
     </div>
   );
   return (
-    <div className="flex items-center gap-2" role="img" aria-label="Olimpo Barber Club">
-      <Emblema className="h-12 w-auto" />
-      <div>
-        <div className="marca text-3xl leading-none">OLIMPO</div>
-        <div className="marca mt-1 text-[.7rem] tracking-[.3em]">BARBER CLUB</div>
-      </div>
+    <div className="flex min-w-0 items-center gap-2" role="img" aria-label={m.nombre}>
+      {imagen}
+      {conTexto && (
+        <div className="min-w-0">
+          <div className={`marca truncate leading-none ${tamTitulo(titulo, false)}`}>{titulo}</div>
+          {sub && <div className="marca mt-1 truncate text-[.7rem] tracking-[.3em]">{sub}</div>}
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Interruptor grande, cómodo para el dedo. */
+export function Interruptor({ activo, onCambio, etiqueta, detalle, deshabilitado }: {
+  activo: boolean; onCambio: (v: boolean) => void; etiqueta: ReactNode; detalle?: ReactNode; deshabilitado?: boolean;
+}) {
+  return (
+    <label className={`flex cursor-pointer items-center justify-between gap-4 py-1 ${deshabilitado ? 'opacity-50' : ''}`}>
+      <span className="min-w-0"><span className="block text-lg">{etiqueta}</span>{detalle && <span className="block text-sm text-tenue">{detalle}</span>}</span>
+      <input type="checkbox" role="switch" className="peer sr-only" checked={activo} disabled={deshabilitado} onChange={(e) => onCambio(e.target.checked)} />
+      <span aria-hidden="true" className={`relative h-8 w-14 shrink-0 rounded-full transition-colors peer-focus-visible:outline peer-focus-visible:outline-3 peer-focus-visible:outline-azul ${activo ? 'bg-verde' : 'bg-borde'}`}>
+        <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-all ${activo ? 'left-7' : 'left-1'}`} />
+      </span>
+    </label>
   );
 }
 

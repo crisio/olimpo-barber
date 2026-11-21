@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom';
 import { Logo, Pagina, Poste } from '../ui';
+import { useMarca } from '../marca';
 
 export default function Privacidad() {
+  const { nombre } = useMarca();
   return (
     <Pagina>
       <Logo />
@@ -14,7 +16,7 @@ export default function Privacidad() {
         <p><b>WhatsApp.</b> Solo te escribimos si tú nos escribes primero o si dejaste tu número. Puedes dejar de recibir avisos respondiendo <b>BAJA</b>.</p>
         <p><b>Uso del sitio.</b> Registramos qué botones se tocan en la página para mejorarla, asociados a un identificador anónimo de tu navegador. No guardamos lo que escribes. Este registro se borra a los 90 días.</p>
         <p><b>Cuánto tiempo.</b> Borramos tu teléfono automáticamente 90 días después de tu última cita.</p>
-        <p><b>Quién lo ve.</b> Solo el personal de Olimpo Barber Club. No vendemos ni compartimos tus datos con nadie.</p>
+        <p><b>Quién lo ve.</b> Solo el personal de {nombre}. No vendemos ni compartimos tus datos con nadie.</p>
         <p><b>Tus derechos.</b> Puedes pedir que corrijamos o borremos tus datos en cualquier momento, en la barbería o por WhatsApp.</p>
       </div>
       <Link to="/" className="btn btn-crema mt-8">Volver al inicio</Link>
