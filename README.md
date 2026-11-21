@@ -145,6 +145,16 @@ Una página web no puede abrir la app de un banco directo en la pantalla de tran
 
 Un administrador no puede quitarse su propio acceso ni borrarse a sí mismo. Si la API publicada es anterior a esta pantalla, Configuración lo avisa y deja guardar solo lo que esa API entiende.
 
+## Instalar como app
+
+La web es una PWA. A quien la abre en el navegador del teléfono le sale, a los pocos segundos, un aviso **Instala la app** (no sale mientras agenda, en la TV ni si ya está instalada):
+
+- **Android con Chrome o Edge**: el botón abre la ventana nativa de instalación.
+- **iPhone y otros navegadores**: una guía de 3 pasos con una flecha que señala el botón del navegador (Compartir → Agregar a inicio → Agregar).
+- **Dentro de Instagram, Facebook o TikTok**: explica cómo abrir la página en el navegador y deja copiar el enlace.
+
+«Ahora no» lo esconde 7 días. Está en `web/src/InstalarApp.tsx`.
+
 ## Avisos al personal
 
 Cuando un cliente reserva, cancela o cambia su cita, el barbero de esa cita y los administradores reciben:
